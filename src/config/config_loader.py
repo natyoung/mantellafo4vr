@@ -331,6 +331,11 @@ LLM parameter list must follow the Python dictionary format: https://www.w3schoo
 LLM parameter list must follow the Python dictionary format: https://www.w3schools.com/python/python_dictionaries.asp""")
                 self.vision_llm_params = None
 
+            # Telemetry
+            self.enable_telemetry = self.__definitions.get_bool_value("enable_telemetry")
+            self.telemetry_otlp_endpoint = self.__definitions.get_string_value("telemetry_otlp_endpoint")
+            self.telemetry_protocol = self.__definitions.get_string_value("telemetry_protocol")
+            
             # Actions
             self.advanced_actions_enabled = self.__definitions.get_bool_value("advanced_actions_enabled")
             self.custom_function_model = self.__definitions.get_bool_value("custom_function_model")

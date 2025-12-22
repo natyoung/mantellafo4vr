@@ -12,6 +12,7 @@ from src.llm.message_thread import message_thread
 from src.llm.messages import Message, ImageMessage, UserMessage
 from src.llm.llm_model_list import LLMModelList
 import src.utils as utils
+from src.telemetry.telemetry import create_span_from_thread
 from src.actions.function_manager import FunctionManager
 
 logger = utils.get_logger()
@@ -223,125 +224,126 @@ class ClientBase(AIClient):
         reply = chat_completion.choices[0].message.content
         return reply
         
-
+    
     @utils.time_it
     async def streaming_call(self, messages: Message | message_thread, is_multi_npc: bool, tools: list[dict] = None) -> AsyncGenerator[tuple[str, str | list] | None, None]:
-        with self._generation_lock:
-            logger.log(28, 'Getting LLM response...')
+        with create_span_from_thread("llm_streaming_call") as span:
+            with self._generation_lock:
+                logger.log(28, 'Getting LLM response...')
 
-            if self._request_params:
-                request_params = self._request_params.copy() # copy of self._request_params to allow temporary override
-            else:
-                request_params: dict[str, Any] = {}
-            if is_multi_npc: # override max_tokens to be at least 250 in radiant / multi-NPC conversations
-                request_params["max_tokens"] = max(self.max_tokens_param, 250)
-            try:
-                # Prepare the messages including the image if provided
-                vision_hints = ''
-                if isinstance(messages, Message):
-                    openai_messages = [messages.get_openai_message()]
-                    if isinstance(messages, UserMessage):
-                        vision_hints = messages.get_ingame_events_text()
+                if self._request_params:
+                    request_params = self._request_params.copy() # copy of self._request_params to allow temporary override
                 else:
-                    openai_messages = messages.get_openai_messages()
-                    last_message = messages.get_last_message()
-                    if isinstance(last_message, UserMessage):
-                        vision_hints = last_message.get_ingame_events_text()
-                
-                # Determine if vision should be enabled for this call
-                if self._should_enable_vision():
-                    if self._image_client:
-                        openai_messages = self._image_client.add_image_to_messages(openai_messages, vision_hints)
-                        logger.log(23, f"Vision enabled for this LLM call")
+                    request_params: dict[str, Any] = {}
+                if is_multi_npc: # override max_tokens to be at least 250 in radiant / multi-NPC conversations
+                    request_params["max_tokens"] = max(self.max_tokens_param, 250)
+                try:
+                    # Prepare the messages including the image if provided
+                    vision_hints = ''
+                    if isinstance(messages, Message):
+                        openai_messages = [messages.get_openai_message()]
+                        if isinstance(messages, UserMessage):
+                            vision_hints = messages.get_ingame_events_text()
                     else:
-                        logger.warning("Vision tool called but Vision not enabled in config - ignoring")
-                    self._enable_vision_next_call = False  # Reset flag after use
-
-                # Handle tool calling: use dedicated function client if available, otherwise use main LLM
-                if tools:
-                    if self._function_client:
-                        pre_fetched_tool_calls = self._function_client.check_for_actions(messages, tools)
-                        if pre_fetched_tool_calls:
-                            yield ("tool_calls", pre_fetched_tool_calls)
-                    else:
-                        # If custom function LLM isn't enabled, let the main LLM handle tool calling as well as text generation
-                        request_params["tools"] = tools
-                
-                # Create async client for main LLM streaming (after function client has run if applicable)
-                if self._startup_async_client:
-                    async_client = self._startup_async_client
-                    self._startup_async_client = None # do not reuse the same client
-                else:
-                    async_client = self.generate_async_client()
-                
-                # Dict to track partial tool calls by index
-                accumulated_tool_calls = {}
-                
-                async for chunk in await async_client.chat.completions.create(
-                    model=self.model_name, 
-                    messages=openai_messages, 
-                    stream=True,
-                    **request_params,
-                ):
-                    try:
-                        if chunk and chunk.choices and chunk.choices[0].delta:
-                            delta = chunk.choices[0].delta
-                            
-                            # Handle regular content
-                            if delta.content:
-                                yield ("content", delta.content)
-                            
-                            # Accumulate tool calls by index
-                            if delta.tool_calls:
-                                for tool_call in delta.tool_calls:
-                                    idx = tool_call.index
-                                    if idx not in accumulated_tool_calls:
-                                        accumulated_tool_calls[idx] = {
-                                            "id": tool_call.id if tool_call.id else "",
-                                            "type": "function",
-                                            "function": {
-                                                "name": "",
-                                                "arguments": ""
-                                            }
-                                        }
-                                    
-                                    # Accumulate the parts
-                                    if tool_call.id:
-                                        accumulated_tool_calls[idx]["id"] = tool_call.id
-                                    if tool_call.function and tool_call.function.name:
-                                        accumulated_tool_calls[idx]["function"]["name"] += tool_call.function.name
-                                    if tool_call.function and tool_call.function.arguments:
-                                        accumulated_tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
-                            
-                    except Exception as e:
-                        logger.error(f"LLM API Connection Error: {e}")
-                        break
-                
-                # After streaming completes, yield any accumulated tool calls
-                if accumulated_tool_calls:
-                    tool_calls_list = [accumulated_tool_calls[i] for i in sorted(accumulated_tool_calls.keys())]
-                    yield ("tool_calls", tool_calls_list)
-            except Exception as e:
-                utils.play_error_sound()
-                if isinstance(e, APIConnectionError):
-                    if e.code in [401, 'invalid_api_key']: # incorrect API key
-                        if self._base_url == 'https://api.openai.com/v1':
-                            service_connection_attempt = 'OpenRouter' # check if player means to connect to OpenRouter
+                        openai_messages = messages.get_openai_messages()
+                        last_message = messages.get_last_message()
+                        if isinstance(last_message, UserMessage):
+                            vision_hints = last_message.get_ingame_events_text()
+                    
+                    # Determine if vision should be enabled for this call
+                    if self._should_enable_vision():
+                        if self._image_client:
+                            openai_messages = self._image_client.add_image_to_messages(openai_messages, vision_hints)
+                            logger.log(23, f"Vision enabled for this LLM call")
                         else:
-                            service_connection_attempt = 'OpenAI' # check if player means to connect to OpenAI
-                        logger.error(f"Invalid API key. If you are trying to connect to {service_connection_attempt}, please choose an {service_connection_attempt} model via the 'model' setting in MantellaSoftware/config.ini. If you are instead trying to connect to a local model, please ensure the service is running.")
+                            logger.warning("Vision tool called but Vision not enabled in config - ignoring")
+                        self._enable_vision_next_call = False  # Reset flag after use
+
+                    # Handle tool calling: use dedicated function client if available, otherwise use main LLM
+                    if tools:
+                        if self._function_client:
+                            pre_fetched_tool_calls = self._function_client.check_for_actions(messages, tools)
+                            if pre_fetched_tool_calls:
+                                yield ("tool_calls", pre_fetched_tool_calls)
+                        else:
+                            # If custom function LLM isn't enabled, let the main LLM handle tool calling as well as text generation
+                            request_params["tools"] = tools
+                    
+                    # Create async client for main LLM streaming (after function client has run if applicable)
+                    if self._startup_async_client:
+                        async_client = self._startup_async_client
+                        self._startup_async_client = None # do not reuse the same client
                     else:
-                        logger.error(f"LLM API Error: {e}")
-                elif isinstance(e, BadRequestError):
-                    if (e.type == 'invalid_request_error') and (self._image_client): # invalid request
-                        logger.error(f"Invalid request. Try disabling Vision in Mantella's settings and try again.")
+                        async_client = self.generate_async_client()
+                    
+                    # Dict to track partial tool calls by index
+                    accumulated_tool_calls = {}
+                    
+                    async for chunk in await async_client.chat.completions.create(
+                        model=self.model_name, 
+                        messages=openai_messages, 
+                        stream=True,
+                        **request_params,
+                    ):
+                        try:
+                            if chunk and chunk.choices and chunk.choices[0].delta:
+                                delta = chunk.choices[0].delta
+                                
+                                # Handle regular content
+                                if delta.content:
+                                    yield ("content", delta.content)
+                                
+                                # Accumulate tool calls by index
+                                if delta.tool_calls:
+                                    for tool_call in delta.tool_calls:
+                                        idx = tool_call.index
+                                        if idx not in accumulated_tool_calls:
+                                            accumulated_tool_calls[idx] = {
+                                                "id": tool_call.id if tool_call.id else "",
+                                                "type": "function",
+                                                "function": {
+                                                    "name": "",
+                                                    "arguments": ""
+                                                }
+                                            }
+                                        
+                                        # Accumulate the parts
+                                        if tool_call.id:
+                                            accumulated_tool_calls[idx]["id"] = tool_call.id
+                                        if tool_call.function and tool_call.function.name:
+                                            accumulated_tool_calls[idx]["function"]["name"] += tool_call.function.name
+                                        if tool_call.function and tool_call.function.arguments:
+                                            accumulated_tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
+                                
+                        except Exception as e:
+                            logger.error(f"LLM API Connection Error: {e}")
+                            break
+                    
+                    # After streaming completes, yield any accumulated tool calls
+                    if accumulated_tool_calls:
+                        tool_calls_list = [accumulated_tool_calls[i] for i in sorted(accumulated_tool_calls.keys())]
+                        yield ("tool_calls", tool_calls_list)
+                except Exception as e:
+                    utils.play_error_sound()
+                    if isinstance(e, APIConnectionError):
+                        if e.code in [401, 'invalid_api_key']: # incorrect API key
+                            if self._base_url == 'https://api.openai.com/v1':
+                                service_connection_attempt = 'OpenRouter' # check if player means to connect to OpenRouter
+                            else:
+                                service_connection_attempt = 'OpenAI' # check if player means to connect to OpenAI
+                            logger.error(f"Invalid API key. If you are trying to connect to {service_connection_attempt}, please choose an {service_connection_attempt} model via the 'model' setting in MantellaSoftware/config.ini. If you are instead trying to connect to a local model, please ensure the service is running.")
+                        else:
+                            logger.error(f"LLM API Error: {e}")
+                    elif isinstance(e, BadRequestError):
+                        if (e.type == 'invalid_request_error') and (self._image_client): # invalid request
+                            logger.error(f"Invalid request. Try disabling Vision in Mantella's settings and try again.")
+                        else:
+                            logger.error(f"LLM API Streaming Error: {e}")
                     else:
                         logger.error(f"LLM API Streaming Error: {e}")
-                else:
-                    logger.error(f"LLM API Streaming Error: {e}")
-            finally:
-                if async_client:
-                    await async_client.close()
+                finally:
+                    if async_client:
+                        await async_client.close()
 
 
     @utils.time_it

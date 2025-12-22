@@ -174,6 +174,9 @@ class MantellaConfigValueDefinitionsNew:
         other_category.add_config_value(OtherDefinitions.get_port_config_value())
         other_category.add_config_value(OtherDefinitions.get_show_http_debug_messages_config_value())
         other_category.add_config_value(OtherDefinitions.get_advanced_logs_config_value())
+        other_category.add_config_value(OtherDefinitions.get_enable_telemetry_config_value())
+        other_category.add_config_value(OtherDefinitions.get_telemetry_otlp_endpoint_config_value())
+        other_category.add_config_value(OtherDefinitions.get_telemetry_protocol_config_value())
         # other_category.add_config_value(OtherDefinitions.get_debugging_config_value())
         # other_category.add_config_value(OtherDefinitions.get_play_audio_from_script_config_value())
         # other_category.add_config_value(OtherDefinitions.get_debugging_npc_config_value())
@@ -181,5 +184,5 @@ class MantellaConfigValueDefinitionsNew:
         # other_category.add_config_value(OtherDefinitions.get_default_player_response_config_value())
         # other_category.add_config_value(OtherDefinitions.get_exit_on_first_exchange_config_value())
         result.add_base_group(other_category)
-      
+
         return result
