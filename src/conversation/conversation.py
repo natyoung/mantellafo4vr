@@ -288,11 +288,16 @@ class Conversation:
         events_need_updating: bool = False
 
         with self.__generation_start_lock: #This lock makes sure no new generation by the LLM is started while we clear this
-            self.__stop_generation() # Stop generation of additional sentences right now
-            self.__sentences.clear() # Clear any remaining sentences from the list
+            # For mic input with empty text (entering STT mode), don't kill NPC generation yet.
+            # The player hasn't spoken — wait for actual speech before interrupting the NPC.
+            is_entering_stt = self.__mic_input and len(player_text) == 0
+
+            if not is_entering_stt:
+                self.__stop_generation() # Stop generation of additional sentences right now
+                self.__sentences.clear() # Clear any remaining sentences from the list
 
             # If the player's input does not already exist, parse mic input if mic is enabled
-            if self.__mic_input and len(player_text) == 0:
+            if is_entering_stt:
                 player_text = None
                 
                 if not self.__allow_mic_input:
@@ -336,7 +341,12 @@ class Conversation:
                     
                 # Stop listening once input detected to give NPC a chance to speak
                 self.__stt.stop_listening()
-                
+
+                # NOW stop NPC generation — player has actually spoken (or silence timed out)
+                logger.debug('Player STT complete, stopping NPC generation')
+                self.__stop_generation()
+                self.__sentences.clear()
+
                 if time.time() - input_wait_start_time >= self.__events_refresh_time:
                     # If too much time has passed, in-game events need to be updated
                     events_need_updating = True
