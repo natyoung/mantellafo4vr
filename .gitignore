@@ -27,3 +27,7 @@ data/voice_model_data_log_xtts.csv
 .coverage
 moonshine/
 user_folder
+.python-version
+.venv/
+data/Fallout4/wiki.db
+data/Fallout4/wiki/*.xml
