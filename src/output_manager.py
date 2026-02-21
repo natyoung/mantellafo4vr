@@ -364,9 +364,20 @@ class ChatManager:
                         if not raw_response.strip():
                             retries += 1
                             if retries >= max_retries:
-                                logger.warning(f"Empty LLM response for {active_character.name} after {retries} retries")
+                                logger.warning(f"Empty LLM response for {active_character.name} after {retries} retries - using fallback")
+                                fallback = self.generate_sentence(SentenceContent(active_character, "I can't find the right words at the moment.", SentenceTypeEnum.SPEECH, True))
+                                blocking_queue.put(fallback)
                                 break
-                            time.sleep(1)
+                            wait = min(2 ** retries, 30)
+                            logger.warning(f"Empty LLM response, retrying in {wait}s (attempt {retries}/{max_retries})")
+                            time.sleep(wait)
+                            # Reset state for next attempt
+                            raw_response = ''
+                            has_text_response = False
+                            first_token = True
+                            collected_tool_calls = []
+                            tool_calls_added_this_turn = False
+                            logger.log(23, f"Starting retry {retries}/{max_retries} for {active_character.name}...")
                             continue
                         
                         break  # Got text response or hit an error, exit loop

@@ -181,7 +181,7 @@ class ClientBase(AIClient):
         Returns:
             AsyncOpenAI: The new async client object
         """
-        return AsyncOpenAI(api_key=self._api_key, base_url=self._base_url, default_headers=self._header)
+        return AsyncOpenAI(api_key=self._api_key, base_url=self._base_url, default_headers=self._header, timeout=30.0)
 
 
     @utils.time_it

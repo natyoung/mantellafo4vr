@@ -15,7 +15,11 @@ import threading
 import time
 import os
 import wave
-from moonshine_onnx import MoonshineOnnxModel, load_tokenizer
+try:
+    from moonshine_onnx import MoonshineOnnxModel, load_tokenizer
+except ImportError:
+    MoonshineOnnxModel = None
+    load_tokenizer = None
 import onnxruntime as ort
 from scipy.io import wavfile
 from sounddevice import InputStream

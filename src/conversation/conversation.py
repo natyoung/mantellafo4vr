@@ -475,8 +475,12 @@ class Conversation:
         self.__context.update_context(location, time, custom_ingame_events, weather, npcs_nearby, custom_context_values, config_settings, game_days)
         logger.debug(f"After context.update_context: actors_changed={self.__context.have_actors_changed}, game_context_changed={self.__context.game_context_changed}")
         if self.__context.have_actors_changed or self.__context.game_context_changed:
-            logger.info(f"Regenerating prompt (actors_changed={self.__context.have_actors_changed}, game_context_changed={self.__context.game_context_changed})")
-            self.__update_conversation_type()
+            npc_count = sum(1 for c in self.__context.npcs_in_conversation.get_all_characters() if not c.is_player_character)
+            if npc_count > 0:
+                logger.info(f"Regenerating prompt (actors_changed={self.__context.have_actors_changed}, game_context_changed={self.__context.game_context_changed})")
+                self.__update_conversation_type()
+            else:
+                logger.info("Skipping prompt regeneration - no NPC characters present yet")
             self.__context.have_actors_changed = False
             self.__context.game_context_changed = False
 

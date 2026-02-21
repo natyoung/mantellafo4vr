@@ -199,12 +199,22 @@ class Fallout4(Gameable):
 
         return character_info
     
+    @staticmethod
+    def _strip_voice_folder_formid(voice_model: str) -> str:
+        """Strip parenthetical form ID from voice model name for folder path.
+
+        FO4 sends voice types like 'RobotMrHandy (00019FE3)' but the game
+        engine looks up voice files in folders named just 'RobotMrHandy'.
+        """
+        import re
+        return re.sub(r'\s*\([0-9A-Fa-f]+\)$', '', voice_model)
+
     @utils.time_it
     def prepare_sentence_for_game(self, queue_output: Sentence, context_of_conversation: 'Context', config: ConfigLoader, topicID: int, isFirstLine: bool):
         audio_file = queue_output.voice_file
         if not os.path.exists(audio_file):
             return
-        
+
         mod_folder = config.mod_path
         fuz_file = audio_file.replace(".wav",".fuz")
         speaker = queue_output.speaker
@@ -214,7 +224,8 @@ class Fallout4(Gameable):
             dialogue_file_to_use = self.DIALOGUELINE2_FILENAME
 
         if config.save_audio_data_to_character_folder:
-            voice_folder_path = os.path.join(mod_folder,queue_output.speaker.in_game_voice_model)
+            voice_folder_name = self._strip_voice_folder_formid(queue_output.speaker.in_game_voice_model)
+            voice_folder_path = os.path.join(mod_folder, voice_folder_name)
             if not os.path.exists(voice_folder_path):
                 logger.warning(f"{voice_folder_path} has been created for the first time. Please restart Fallout 4 to interact with this NPC.")
                 logger.info("Creating voice folders...")
@@ -227,6 +238,7 @@ class Fallout4(Gameable):
         # Copy FaceFX generated FUZ file
         try:
             fuz_filepath = os.path.normpath(f"{voice_folder_path}/{dialogue_file_to_use}.fuz")
+            logger.info(f"[FUZ COPY] {fuz_file} -> {fuz_filepath} (topicID={topicID})")
             shutil.copyfile(fuz_file, fuz_filepath)
         except Exception as e:
             # only warn on failure
