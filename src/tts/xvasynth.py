@@ -123,7 +123,7 @@ class xVASynth(TTSable):
                 backup_voice='malenord'
                 self._run_backup_model(backup_voice)
         try:
-            requests.post(self.__loadmodel_url, json=model_change)
+            requests.post(self.__loadmodel_url, json=model_change, timeout=30)
             self._last_voice = voice
             logger.log(self._loglevel, f'Target model {voice} loaded.')
         except:
@@ -135,7 +135,7 @@ class xVASynth(TTSable):
                 backup_voice='malenord'
             self._run_backup_model(backup_voice)
             try:
-                requests.post(self.__loadmodel_url, json=model_change)
+                requests.post(self.__loadmodel_url, json=model_change, timeout=30)
                 self._last_voice = voice
                 logger.log(self._loglevel, f'Voice model {voice} loaded.')
             except:
@@ -245,7 +245,7 @@ class xVASynth(TTSable):
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                requests.post(self.__synthesize_url, json=data)
+                requests.post(self.__synthesize_url, json=data, timeout=30)
                 break  # exit the loop if the request is successful
             except ConnectionError as e:
                 if attempt < max_attempts - 1:  # if not the last attempt
@@ -277,7 +277,7 @@ class xVASynth(TTSable):
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
-                requests.post(self.__synthesize_batch_url, json=data)
+                requests.post(self.__synthesize_batch_url, json=data, timeout=60)
                 break  # Exit the loop if the request is successful
             except ConnectionError as e:
                 if attempt < max_attempts - 1:  # Not the last attempt
@@ -370,7 +370,7 @@ class xVASynth(TTSable):
             'pluginsContext': '{}',
         }
         try:
-            requests.post(self.__loadmodel_url, json=backup_model_change)
+            requests.post(self.__loadmodel_url, json=backup_model_change, timeout=30)
             logger.log(self._loglevel, f'Backup model {voice} loaded.')
         except:
             logger.error(f"Backup model {voice} failed to load")

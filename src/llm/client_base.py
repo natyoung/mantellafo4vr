@@ -4,6 +4,7 @@ from typing import AsyncGenerator, Any, Generator
 from enum import Enum
 from openai import APIConnectionError, BadRequestError, OpenAI, AsyncOpenAI, RateLimitError
 from openai.types.chat import ChatCompletion
+import asyncio
 import time
 import tiktoken
 import os
@@ -321,20 +322,36 @@ class ClientBase(AIClient):
                     # Dict to track partial tool calls by index
                     accumulated_tool_calls = {}
                     
-                    async for chunk in await async_client.chat.completions.create(
-                        model=self.model_name, 
-                        messages=openai_messages, 
+                    stream = await async_client.chat.completions.create(
+                        model=self.model_name,
+                        messages=openai_messages,
                         stream=True,
                         **request_params,
-                    ):
+                    )
+                    first_chunk_timeout = 15.0  # seconds to wait for LLM to start responding
+                    chunk_timeout = 5.0  # seconds between chunks once streaming has started
+                    got_first_chunk = False
+                    while True:
+                        timeout = first_chunk_timeout if not got_first_chunk else chunk_timeout
+                        try:
+                            chunk = await asyncio.wait_for(stream.__anext__(), timeout=timeout)
+                            got_first_chunk = True
+                        except StopAsyncIteration:
+                            break
+                        except asyncio.TimeoutError:
+                            if not got_first_chunk:
+                                logger.warning(f"Streaming timeout: no response from LLM in {first_chunk_timeout}s, aborting")
+                            else:
+                                logger.warning(f"Streaming timeout: no chunk received in {chunk_timeout}s, aborting stream")
+                            break
                         try:
                             if chunk and chunk.choices and chunk.choices[0].delta:
                                 delta = chunk.choices[0].delta
-                                
+
                                 # Handle regular content
                                 if delta.content:
                                     yield ("content", delta.content)
-                                
+
                                 # Accumulate tool calls by index
                                 if delta.tool_calls:
                                     for tool_call in delta.tool_calls:
@@ -348,7 +365,7 @@ class ClientBase(AIClient):
                                                     "arguments": ""
                                                 }
                                             }
-                                        
+
                                         # Accumulate the parts
                                         if tool_call.id:
                                             accumulated_tool_calls[idx]["id"] = tool_call.id
@@ -356,7 +373,7 @@ class ClientBase(AIClient):
                                             accumulated_tool_calls[idx]["function"]["name"] += tool_call.function.name
                                         if tool_call.function and tool_call.function.arguments:
                                             accumulated_tool_calls[idx]["function"]["arguments"] += tool_call.function.arguments
-                                
+
                         except Exception as e:
                             logger.error(f"LLM API Connection Error: {e}")
                             break

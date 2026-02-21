@@ -51,14 +51,18 @@ class file_communication_compatibility:
             "accept": "application/json"
         }
         response = requests.post(url=url, headers=header, json=json_object, timeout=120)
+        response.raise_for_status()
         reply: Any = response.json()
         return json.dumps(reply)
 
-    def __load_request_when_available(self, last_reply: str) -> str:
+    def __load_request_when_available(self, last_reply: str, timeout: float = 120) -> str:
         text = ""
+        start = time.time()
         while text == '' or text == last_reply:
             with open(self.__file, 'r', encoding='utf-8') as f:
                 text = f.read().strip()
+            if time.time() - start > timeout:
+                raise TimeoutError(f"No new data in communication file after {timeout}s")
             # decrease stress on CPU while waiting for file to populate
             time.sleep(0.01)
         return text

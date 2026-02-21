@@ -29,9 +29,13 @@ class SentenceQueue:
         self.log(f"Trying to aquire get_lock to get next sentence")
         with self.__get_lock:
             if self.__queue.qsize() > 0 or self.__is_more_to_come:
-                retrieved_sentence = self.__queue.get()
-                self.log(f"Retrieved '{retrieved_sentence.text}'")
-                return retrieved_sentence
+                try:
+                    retrieved_sentence = self.__queue.get(timeout=30)
+                    self.log(f"Retrieved '{retrieved_sentence.text}'")
+                    return retrieved_sentence
+                except queue.Empty:
+                    logger.warning("Sentence queue timeout: waited 30s but no sentence arrived")
+                    return None
             else:
                 self.log(f"Nothing to get from queue, returning None")
                 return None

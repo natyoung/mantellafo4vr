@@ -208,7 +208,7 @@ class XTTS(TTSable):
                 'language': self.__voice_language,  # Use per-NPC language instead of global
                 'accent': self.__voice_accent,
             }
-            return requests.post(self.__xtts_synthesize_url, json=data)
+            return requests.post(self.__xtts_synthesize_url, json=data, timeout=30)
 
         response = get_voiceline(self._last_voice.lower())
         if response and response.status_code == 200:

@@ -144,7 +144,7 @@ class TTSable(ABC):
     @staticmethod
     @utils.time_it
     def _send_request(url, data):
-        requests.post(url, json=data)
+        requests.post(url, json=data, timeout=15)
 
 
     @utils.time_it
