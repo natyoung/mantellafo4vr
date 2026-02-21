@@ -151,7 +151,12 @@ class ChatManager:
         """Stops the current generation and only returns once this stop has been successful
         """
         self.__stop_generation.set()
+        deadline = time.time() + 15
         while self.__is_generating:
+            if time.time() > deadline:
+                logger.warning("stop_generation timed out after 15s, forcing state reset")
+                self.__is_generating = False
+                break
             time.sleep(0.01)
         self.__stop_generation.clear()
         return
@@ -411,22 +416,26 @@ class ChatManager:
                 else:
                     logger.error(f"LLM API Error: {e}")
             finally:
-                # Handle any remaining content
-                if parsed_sentence:
-                    if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or parsed_sentence.sentence_type != SentenceTypeEnum.NARRATION:
-                        new_sentence = self.generate_sentence(parsed_sentence)
-                        blocking_queue.put(new_sentence)
-                
-                if pending_sentence:
-                    if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or pending_sentence.sentence_type != SentenceTypeEnum.NARRATION:
-                        new_sentence = self.generate_sentence(pending_sentence)
-                        blocking_queue.put(new_sentence)
-                token_count = self.__client.get_count_tokens(raw_response)
-                logger.log(23, f"Full raw response ({token_count} tokens): {raw_response.strip()}")
-                llm_debug.log_llm_response(raw_response, token_count)
-                
-                blocking_queue.is_more_to_come = False
-                # This sentence is required to make sure there is one in case the game is already waiting for it
-                # before the ChatManager realises there is not another message coming from the LLM
-                blocking_queue.put(Sentence(SentenceContent(active_character,"",SentenceTypeEnum.SPEECH, True),"",0))
-                self.__is_generating = False
+                try:
+                    # Handle any remaining content
+                    if parsed_sentence:
+                        if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or parsed_sentence.sentence_type != SentenceTypeEnum.NARRATION:
+                            new_sentence = self.generate_sentence(parsed_sentence)
+                            blocking_queue.put(new_sentence)
+
+                    if pending_sentence:
+                        if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or pending_sentence.sentence_type != SentenceTypeEnum.NARRATION:
+                            new_sentence = self.generate_sentence(pending_sentence)
+                            blocking_queue.put(new_sentence)
+                    token_count = self.__client.get_count_tokens(raw_response)
+                    logger.log(23, f"Full raw response ({token_count} tokens): {raw_response.strip()}")
+                    llm_debug.log_llm_response(raw_response, token_count)
+                except Exception as e:
+                    logger.error(f"Error in response finalization: {e}")
+                finally:
+                    # These MUST always execute to avoid permanent queue/state deadlock
+                    blocking_queue.is_more_to_come = False
+                    # This sentence is required to make sure there is one in case the game is already waiting for it
+                    # before the ChatManager realises there is not another message coming from the LLM
+                    blocking_queue.put(Sentence(SentenceContent(active_character,"",SentenceTypeEnum.SPEECH, True),"",0))
+                    self.__is_generating = False

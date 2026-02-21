@@ -88,6 +88,7 @@ class Conversation:
         self.last_sentence_start_time = time.time()
         self.__end_conversation_keywords = utils.parse_keywords(context_for_conversation.config.end_conversation_keyword)
         self.__awaiting_action_result: bool = False
+        self.__awaiting_action_since: float = 0
         self.__dynamic_vocab: str = ""  # LLM-generated vocabulary for Whisper
         self.__waiting_for_game_context: bool = False  # Delay LLM until game context arrives (for two-way communication)
 
@@ -225,6 +226,7 @@ class Conversation:
         if next_sentence and len(next_sentence.text.strip()) == 0 and len(next_sentence.actions) > 0:
             if FunctionManager.any_action_requires_response(next_sentence.actions):
                 self.__awaiting_action_result = True
+                self.__awaiting_action_since = time.time()
             return comm_consts.KEY_REPLYTYPE_NPCACTION, next_sentence
         elif next_sentence and len(next_sentence.text) > 0:
             # Stop mic if it's listening (player's turn ended, NPC is talking now)
@@ -605,6 +607,9 @@ class Conversation:
 
         pending_events = self.__context.get_context_ingame_events()
         if not pending_events:
+            if time.time() - self.__awaiting_action_since > 30:
+                logger.warning("Awaiting action result timed out after 30s, resuming conversation")
+                self.__awaiting_action_result = False
             return False
 
         # Add synthetic user message containing just the new in-game events
