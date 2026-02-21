@@ -126,8 +126,12 @@ class GameStateManager:
             elif replyType == comm_consts.KEY_REPLYTYPE_NPCACTION:
                 # Action-only response (no voiceline)
                 if sentence_to_play and len(sentence_to_play.actions) > 0:
+                    # FO4VR Papyrus doesn't handle mantella_npc_action reply type — skip and get text response
+                    if self.__config.game.base_game == GameEnum.FALLOUT4:
+                        logger.log(23, f"Skipping action-only response for FO4 (actions: {sentence_to_play.actions})")
+                        continue
                     requires_response = FunctionManager.any_action_requires_response(sentence_to_play.actions)
-                    
+
                     logger.log(23, f"Sending action-only response with {len(sentence_to_play.actions)} action(s), requires_response={requires_response}")
                     return {
                         comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCACTION,
