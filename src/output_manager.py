@@ -367,6 +367,9 @@ class ChatManager:
                         
                         # Handle empty response
                         if not raw_response.strip():
+                            # Don't retry if we've been asked to stop
+                            if self.__stop_generation.is_set():
+                                break
                             retries += 1
                             if retries >= max_retries:
                                 logger.warning(f"Empty LLM response for {active_character.name} after {retries} retries - using fallback")
@@ -375,7 +378,13 @@ class ChatManager:
                                 break
                             wait = min(2 ** retries, 30)
                             logger.warning(f"Empty LLM response, retrying in {wait}s (attempt {retries}/{max_retries})")
-                            time.sleep(wait)
+                            # Check stop_generation during backoff wait
+                            for _ in range(int(wait * 10)):
+                                if self.__stop_generation.is_set():
+                                    break
+                                time.sleep(0.1)
+                            if self.__stop_generation.is_set():
+                                break
                             # Reset state for next attempt
                             raw_response = ''
                             has_text_response = False
