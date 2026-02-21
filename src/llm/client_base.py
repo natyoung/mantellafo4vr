@@ -331,20 +331,26 @@ class ClientBase(AIClient):
                     first_chunk_timeout = 15.0  # seconds to wait for LLM to start responding
                     chunk_timeout = 5.0  # seconds between chunks once streaming has started
                     got_first_chunk = False
+                    chunk_count = 0
+                    last_finish_reason = None
                     while True:
                         timeout = first_chunk_timeout if not got_first_chunk else chunk_timeout
                         try:
                             chunk = await asyncio.wait_for(stream.__anext__(), timeout=timeout)
                             got_first_chunk = True
+                            chunk_count += 1
                         except StopAsyncIteration:
                             break
                         except asyncio.TimeoutError:
                             if not got_first_chunk:
                                 logger.warning(f"Streaming timeout: no response from LLM in {first_chunk_timeout}s, aborting")
                             else:
-                                logger.warning(f"Streaming timeout: no chunk received in {chunk_timeout}s, aborting stream")
+                                logger.warning(f"Streaming timeout: no chunk received in {chunk_timeout}s after {chunk_count} chunks, aborting stream")
                             break
                         try:
+                            # Log finish reason for diagnostics
+                            if chunk and chunk.choices and chunk.choices[0].finish_reason:
+                                last_finish_reason = chunk.choices[0].finish_reason
                             if chunk and chunk.choices and chunk.choices[0].delta:
                                 delta = chunk.choices[0].delta
 
@@ -378,6 +384,12 @@ class ClientBase(AIClient):
                             logger.error(f"LLM API Connection Error: {e}")
                             break
                     
+                    # Log stream diagnostics
+                    if chunk_count == 0:
+                        logger.warning(f"LLM stream ended with 0 chunks (finish_reason={last_finish_reason}, model={self.model_name})")
+                    elif last_finish_reason:
+                        logger.debug(f"LLM stream ended: {chunk_count} chunks, finish_reason={last_finish_reason}")
+
                     # After streaming completes, yield any accumulated tool calls
                     if accumulated_tool_calls:
                         tool_calls_list = [accumulated_tool_calls[i] for i in sorted(accumulated_tool_calls.keys())]
