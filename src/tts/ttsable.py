@@ -280,18 +280,21 @@ class TTSable(ABC):
                 run_facefx_command(fuz_command, facefx_path)
 
         try:
-            
+
             # path to store .lip file (next to voiceline .wav)
             lip_file: str = wav_file.replace(".wav", ".lip")
-            
+
             if not skip_lip_generation:
                 generate_facefx_lip_file(self._facefx_path, wav_file, lip_file, voiceline, self._game.base_game.display_name)
             else:
                 copy_placeholder_lip_file(lip_file, self._game.base_game.display_name)
-            
+
             # Fallout 4 requires voicelines in a .fuz format
-            if self._game.base_game == GameEnum.FALLOUT4:    
-                generate_fuz_file(self._facefx_path,wav_file, lip_file)
-        
+            if self._game.base_game == GameEnum.FALLOUT4:
+                generate_fuz_file(self._facefx_path, wav_file, lip_file)
+                fuz_file = wav_file.replace(".wav", ".fuz")
+                if not os.path.exists(fuz_file):
+                    logger.error(f"[FUZ GEN FAILED] FUZ file was not created at {fuz_file} — check LipFuzer/FaceFX installation")
+
         except Exception as e:
-            logger.warning(e)
+            logger.warning(f"Voice file generation failed: {e}")

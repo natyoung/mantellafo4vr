@@ -234,15 +234,16 @@ class Fallout4(Gameable):
             voice_folder_path = os.path.join(mod_folder, self.MANTELLA_VOICE_FOLDER)
         os.makedirs(voice_folder_path, exist_ok=True)
         
-        # subtitle = queue_output.sentence
         # Copy FaceFX generated FUZ file
+        if not os.path.exists(fuz_file):
+            logger.error(f"[FUZ MISSING] Expected FUZ file not found: {fuz_file} — FUZ generation likely failed")
+            return
         try:
             fuz_filepath = os.path.normpath(f"{voice_folder_path}/{dialogue_file_to_use}.fuz")
             logger.info(f"[FUZ COPY] {fuz_file} -> {fuz_filepath} (topicID={topicID})")
             shutil.copyfile(fuz_file, fuz_filepath)
         except Exception as e:
-            # only warn on failure
-            logger.warning(e)
+            logger.error(f"[FUZ COPY FAILED] {fuz_file} -> {voice_folder_path}: {e}")
 
         self.__last_played_voiceline = queue_output.voice_file
         logger.info(f"{speaker.name}: {queue_output.text}")

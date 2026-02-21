@@ -26,16 +26,23 @@ class file_communication_compatibility:
     def __monitor(self):
         reply: str = ""
         while True:
-            json_text = self.__load_request_when_available(reply)
-            json_request = json.loads(json_text)
-            json_request = self.__lower_keys(json_request)
-            if not json_request.__contains__(self.KEY_ROUTE):
-                continue
-            route: str = json_request[self.KEY_ROUTE]
-            route = route.lower()
-            json_request[self.KEY_ROUTE] = route
-            reply = self.__send_request_to_mantella(route, json_request)
-            self.__write_response(reply)
+            try:
+                json_text = self.__load_request_when_available(reply)
+                json_request = json.loads(json_text)
+                json_request = self.__lower_keys(json_request)
+                if not json_request.__contains__(self.KEY_ROUTE):
+                    continue
+                route: str = json_request[self.KEY_ROUTE]
+                route = route.lower()
+                json_request[self.KEY_ROUTE] = route
+                reply = self.__send_request_to_mantella(route, json_request)
+                self.__write_response(reply)
+            except json.JSONDecodeError as e:
+                print(f'[file_communication] Malformed JSON in communication file, skipping: {e}')
+                time.sleep(0.1)
+            except Exception as e:
+                print(f'[file_communication] Error in monitor loop: {type(e).__name__}: {e}')
+                time.sleep(0.5)
     
     def __send_request_to_mantella(self, route: str, json_object: dict[str, Any]) -> str:
         url: str = self.__url + route
@@ -43,7 +50,8 @@ class file_communication_compatibility:
             "Content-Type": "application/json",
             "accept": "application/json"
         }
-        reply: Any = requests.post(url=url, headers=header, json= json_object).json()
+        response = requests.post(url=url, headers=header, json=json_object, timeout=120)
+        reply: Any = response.json()
         return json.dumps(reply)
 
     def __load_request_when_available(self, last_reply: str) -> str:
