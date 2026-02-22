@@ -70,7 +70,7 @@ class Skyrim(Gameable):
             return text
 
     @utils.time_it
-    def load_external_character_info(self, base_id: str, name: str, race: str, gender: int, ingame_voice_model: str) -> external_character_info:
+    def load_external_character_info(self, base_id: str, name: str, race: str, gender: int, ingame_voice_model: str, ref_id: str = "") -> external_character_info:
         character_info, is_generic_npc = self.find_character_info(base_id, name, race, gender, ingame_voice_model)
         actor_voice_model_name = ingame_voice_model.split('<')[1].split(' ')[0]
 

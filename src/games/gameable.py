@@ -93,7 +93,7 @@ class Gameable(ABC):
         return character_df
     
     @abstractmethod
-    def load_external_character_info(self, base_id: str, name: str, race: str, gender: int, actor_voice_model_name: str)-> external_character_info:
+    def load_external_character_info(self, base_id: str, name: str, race: str, gender: int, actor_voice_model_name: str, ref_id: str = "")-> external_character_info:
         """This loads extra information about a character that can not be gained from the game. i.e. bios or voice_model_names for TTS
 
         Args:

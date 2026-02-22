@@ -416,7 +416,7 @@ class GameStateManager:
                     is_generic_npc = already_loaded_character.is_generic_npc
                     prompt_name = already_loaded_character.prompt_name
             elif self.__talk and not is_player_character :#If this is not the player and the character has not already been loaded
-                external_info: external_character_info = self.__game.load_external_character_info(base_id, character_name, race, gender, actor_voice_model)
+                external_info: external_character_info = self.__game.load_external_character_info(base_id, character_name, race, gender, actor_voice_model, ref_id=ref_id)
 
                 # Inject per-NPC max_response_sentences into custom_values if set in override
                 if external_info.max_response_sentences is not None:
