@@ -69,9 +69,6 @@ class XTTS(TTSable):
 
         selected_voice: str | None = self._select_voice_type(voice, in_game_voice, csv_in_game_voice, advanced_voice_model)
 
-        if (selected_voice and selected_voice.lower() in ['maleeventoned','femaleeventoned']) and (self._game.base_game == GameEnum.FALLOUT4):
-            selected_voice = 'fo4_'+ selected_voice
-        
         if not selected_voice:
             logger.log(self._loglevel, 'Error could not identify voice model!')
             return
