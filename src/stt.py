@@ -20,16 +20,16 @@ try:
 except ImportError:
     MoonshineOnnxModel = None
     load_tokenizer = None
-import onnxruntime as ort
+try:
+    import onnxruntime as ort
+    ort.set_default_logger_severity(4)
+except (ImportError, OSError):
+    ort = None
 from scipy.io import wavfile
 from sounddevice import InputStream
 from silero_vad_lite import SileroVAD
 
 logger = utils.get_logger()
-
-
-import onnxruntime as ort
-ort.set_default_logger_severity(4)
 
 
 class Transcriber:
