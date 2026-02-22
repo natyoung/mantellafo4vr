@@ -320,6 +320,27 @@ def test_non_generic_npc_not_renamed(fallout4: Fallout4):
     assert info.is_generic_npc == True  # remains generic since not in GENERIC_NPC_NAMES
 
 
+def test_build_voice_pool_filters_rand_speakers(fallout4: Fallout4):
+    """Test that _build_voice_pool correctly filters rand_ speakers by gender"""
+    speakers = [
+        "rand_f01", "rand_f02", "rand_f03",
+        "rand_m01", "rand_m02",
+        "maleboston", "femaleboston", "piper",
+    ]
+    pool = Fallout4.build_voice_pool(speakers)
+    assert set(pool["female"]) == {"rand_f01", "rand_f02", "rand_f03"}
+    assert set(pool["male"]) == {"rand_m01", "rand_m02"}
+
+
+def test_build_voice_pool_fallback_when_no_rand(fallout4: Fallout4):
+    """Test that _build_voice_pool falls back to all speakers when no rand_ found"""
+    speakers = ["maleboston", "femaleboston", "piper"]
+    pool = Fallout4.build_voice_pool(speakers)
+    # With no rand_ speakers, both pools should be all speakers
+    assert pool["male"] == speakers
+    assert pool["female"] == speakers
+
+
 def test_prepare_sentence_for_game(tmp_path, fallout4: Fallout4, default_config: ConfigLoader, example_fallout4_npc_character: Character):
     """Test that prepare_sentence_for_game correctly processes audio files based on configuration"""
     default_config.save_audio_data_to_character_folder = False # NOTE: This is not tested as it may be soon deprecated

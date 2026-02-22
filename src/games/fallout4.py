@@ -43,7 +43,8 @@ class Fallout4(Gameable):
 
         registry_path = os.path.join(config.save_folder, "generic_npc_registry.json")
         self._generic_npc_registry = GenericNPCRegistry(registry_path)
-        self._generic_npc_voice_pool: dict[str, list[str]] = {"male": [], "female": []}
+        self._generic_npc_voice_pool: dict[str, list[str]] | None = None
+        self._xtts_url = config.xtts_url
 
     @property
     def extender_name(self) -> str:
@@ -78,6 +79,33 @@ class Fallout4(Gameable):
         result = cut_bytes.decode('utf-8')
         return result + "..." #Dots should be part of ASCII and thus only 1 byte long 
 
+    @staticmethod
+    def build_voice_pool(speakers: list[str]) -> dict[str, list[str]]:
+        """Filter speaker names into gendered voice pools by rand_ prefix."""
+        male = [s for s in speakers if s.startswith("rand_m")]
+        female = [s for s in speakers if s.startswith("rand_f")]
+        if not male and not female:
+            return {"male": list(speakers), "female": list(speakers)}
+        return {"male": male, "female": female}
+
+    def _ensure_voice_pool(self):
+        """Lazily fetch XTTS speakers and build the voice pool on first use."""
+        if self._generic_npc_voice_pool is not None:
+            return
+        try:
+            import requests
+            response = requests.get(f"{self._xtts_url}/speakers_list", timeout=5)
+            if response.status_code == 200:
+                all_speakers = response.json()
+                en_speakers = all_speakers.get("en", {}).get("speakers", [])
+                sanitized = [s.replace(" ", "").lower() for s in en_speakers]
+                self._generic_npc_voice_pool = self.build_voice_pool(sanitized)
+                logger.info(f"[VOICE POOL] Built: {len(self._generic_npc_voice_pool['male'])} male, {len(self._generic_npc_voice_pool['female'])} female")
+                return
+        except Exception as e:
+            logger.warning(f"[VOICE POOL] Could not fetch XTTS speakers: {e}")
+        self._generic_npc_voice_pool = {"male": [], "female": []}
+
     @utils.time_it
     def load_external_character_info(self, base_id: str, name: str, race: str, gender: int, ingame_voice_model: str, ref_id: str = "") -> external_character_info:
         character_info, is_generic_npc = self.find_character_info(base_id, name, race, gender, ingame_voice_model)
@@ -89,6 +117,7 @@ class Fallout4(Gameable):
 
         # Assign persistent identity to generic NPCs via registry
         if is_generic_npc and ref_id and character_info.get("name", "") in GENERIC_NPC_NAMES:
+            self._ensure_voice_pool()
             character_race = race.split('<')[1].split('Race')[0].strip().rstrip('>') if '<' in race else race
             identity = self._generic_npc_registry.lookup(ref_id)
             if not identity:
