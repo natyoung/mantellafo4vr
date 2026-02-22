@@ -116,8 +116,15 @@ class GameStateManager:
         if self.__talk.resume_after_interrupting_action():
             logger.log(23, "Resuming conversation after interrupting action result")
 
+        current_talk = self.__talk  # Capture reference to detect if conversation changes
         while True:
-            replyType, sentence_to_play = self.__talk.continue_conversation()
+            if self.__talk is not current_talk:
+                # Conversation was replaced/ended by a concurrent request (e.g. end_conversation
+                # arrived while we were blocking on the sentence queue). Return end_conversation
+                # so the game doesn't process this stale response.
+                logger.warning("Conversation changed during continue_conversation, returning end_conversation")
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
+            replyType, sentence_to_play = current_talk.continue_conversation()
             if replyType == comm_consts.KEY_REQUESTTYPE_TTS:
                 # if player input is detected mid-response, immediately process the player input
                 reply = self.player_input({"mantella_context": {}, "mantella_player_input": "", "mantella_request_type": "mantella_player_input"})
@@ -143,22 +150,32 @@ class GameStateManager:
                 else:
                     # If no actions, continue to next iteration
                     continue
+            elif replyType == comm_consts.KEY_REPLYTYPE_NPCTALK and not sentence_to_play:
+                # NPC generation started but no sentence ready yet (e.g. auto-message in multi-NPC).
+                # Loop again to block until a real sentence arrives instead of returning
+                # empty NPCTALK to game (which crashes Papyrus's ProcessNpcSpeak).
+                continue
             else:
                 reply: dict[str, Any] = {comm_consts.KEY_REPLYTYPE: replyType}
                 break
 
         if sentence_to_play:
             if not sentence_to_play.error_message:
-                self.__game.prepare_sentence_for_game(sentence_to_play, self.__talk.context, self.__config, topicInfoID, self.__first_line)            
-                reply[comm_consts.KEY_REPLYTYPE_NPCTALK] = self.sentence_to_json(sentence_to_play, topicInfoID)
-                self.__first_line = False
+                # Use current_talk for context since self.__talk may have changed
+                if self.__talk is current_talk:
+                    self.__game.prepare_sentence_for_game(sentence_to_play, current_talk.context, self.__config, topicInfoID, self.__first_line)
+                    reply[comm_consts.KEY_REPLYTYPE_NPCTALK] = self.sentence_to_json(sentence_to_play, topicInfoID)
+                    self.__first_line = False
 
-                if {'identifier': comm_consts.ACTION_RELOADCONVERSATION} in sentence_to_play.actions:
-                    # Reload on next continue, but first inform the player that a reload will happen with the "gather thoughts" voiceline
-                    self.__should_reload = True
+                    if {'identifier': comm_consts.ACTION_RELOADCONVERSATION} in sentence_to_play.actions:
+                        # Reload on next continue, but first inform the player that a reload will happen with the "gather thoughts" voiceline
+                        self.__should_reload = True
+                else:
+                    logger.warning("Conversation changed before sentence could be sent, discarding")
+                    return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
             else:
-                self.__talk.end()
-                return self.error_message(sentence_to_play.error_message)        
+                current_talk.end()
+                return self.error_message(sentence_to_play.error_message)
         return reply
 
     @utils.time_it
