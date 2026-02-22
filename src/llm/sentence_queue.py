@@ -63,7 +63,7 @@ class SentenceQueue:
         self.log(f"Trying to aquire put_lock to put '{new_sentence.text}'")
         
         # DIAGNOSTIC: Warn if sentence queued without TTS
-        if new_sentence.text.strip() and not new_sentence.voice_file and new_sentence.duration == 0:
+        if new_sentence.text.strip() and not new_sentence.voice_file and new_sentence.voice_line_duration == 0:
             import traceback
             logger.warning(f"⚠️  SENTENCE QUEUED WITHOUT TTS: '{new_sentence.text[:80]}'")
             logger.warning(f"Stack trace:\n{''.join(traceback.format_stack()[-5:])}")  # Last 5 frames
