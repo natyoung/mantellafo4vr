@@ -56,3 +56,30 @@ class TestGenericNPCRegistry:
             identity = registry.register(f"UNIQUE{i:04d}", gender=0, race="Human", original_name="Settler", voice_pool=voice_pool)
             names.add(identity.assigned_name)
         assert len(names) == 10
+
+    def test_gender_appropriate_voice(self, tmp_path: Path):
+        registry = GenericNPCRegistry(str(tmp_path / "registry.json"))
+        voice_pool = {
+            "male": ["rand_m01", "rand_m02", "rand_m03"],
+            "female": ["rand_f01", "rand_f02", "rand_f03"],
+        }
+        female = registry.register("VOICE_F1", gender=1, race="Human", original_name="Settler", voice_pool=voice_pool)
+        male = registry.register("VOICE_M1", gender=0, race="Human", original_name="Settler", voice_pool=voice_pool)
+        assert female.voice_model.startswith("rand_f")
+        assert male.voice_model.startswith("rand_m")
+
+    def test_bio_contains_name_and_race(self, tmp_path: Path):
+        registry = GenericNPCRegistry(str(tmp_path / "registry.json"))
+        voice_pool = {"male": ["rand_m01"], "female": ["rand_f01"]}
+        identity = registry.register("BIO_TEST", gender=0, race="Ghoul", original_name="Settler", voice_pool=voice_pool)
+        assert identity.assigned_name in identity.bio
+        assert "ghoul" in identity.bio.lower()
+
+    def test_generic_name_detection(self):
+        from src.generic_npc_registry import GENERIC_NPC_NAMES
+        assert "Settler" in GENERIC_NPC_NAMES
+        assert "Resident" in GENERIC_NPC_NAMES
+        assert "Provisioner" in GENERIC_NPC_NAMES
+        assert "Piper" not in GENERIC_NPC_NAMES
+        assert "Preston Garvey" not in GENERIC_NPC_NAMES
+        assert "Nick Valentine" not in GENERIC_NPC_NAMES
