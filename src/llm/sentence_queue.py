@@ -15,22 +15,25 @@ class SentenceQueue:
         self.__queue: queue.Queue[Sentence] = queue.Queue[Sentence]()
         self.__get_lock: threading.Lock = threading.Lock()
         self.__put_lock: threading.Lock = threading.Lock()
+        self.__more_lock: threading.Lock = threading.Lock()
         self.__is_more_to_come: bool = False
         self.__cancelled: threading.Event = threading.Event()
 
     @property
     def is_more_to_come(self) -> bool:
-        return self.__is_more_to_come
+        with self.__more_lock:
+            return self.__is_more_to_come
 
     @is_more_to_come.setter
     def is_more_to_come(self, value: bool):
-        self.__is_more_to_come = value
+        with self.__more_lock:
+            self.__is_more_to_come = value
 
     @utils.time_it
     def get_next_sentence(self) -> Sentence | None:
         self.log(f"Trying to aquire get_lock to get next sentence")
         with self.__get_lock:
-            if self.__queue.qsize() > 0 or self.__is_more_to_come:
+            if self.__queue.qsize() > 0 or self.is_more_to_come:
                 # Use short timeout loops so clear() can interrupt us quickly
                 # by setting __cancelled and __is_more_to_come = False
                 deadline = time.time() + 30
@@ -45,7 +48,7 @@ class SentenceQueue:
                         return retrieved_sentence
                     except queue.Empty:
                         # Re-check if we should still be waiting
-                        if not self.__is_more_to_come and self.__queue.qsize() == 0:
+                        if not self.is_more_to_come and self.__queue.qsize() == 0:
                             self.log("No more to come and queue empty, returning None")
                             return None
                         continue
@@ -89,7 +92,8 @@ class SentenceQueue:
     def clear(self):
         self.log(f"Clearing queue")
         # Signal any blocking get_next_sentence() to exit quickly
-        self.__is_more_to_come = False
+        with self.__more_lock:
+            self.__is_more_to_come = False
         self.__cancelled.set()
         # Drain the queue (Queue is thread-safe, no lock needed for get_nowait)
         try:

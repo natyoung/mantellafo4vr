@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from threading import Lock
 import time
 import unicodedata
@@ -42,7 +43,8 @@ class ChatManager:
         self.__tts: TTSable = tts
         self.__client: AIClient = client
         self.__is_generating: bool = False
-        self.__stop_generation = asyncio.Event()
+        self.__gen_lock = threading.Lock()
+        self.__stop_generation = threading.Event()
         self.__tts_access_lock = Lock()
         self.__is_first_sentence: bool = False
         self.__listen_requested: bool = False
@@ -142,8 +144,9 @@ class ChatManager:
         """
         if(not characters.last_added_character):
             return
-        self.__is_generating = True
-        
+        with self.__gen_lock:
+            self.__is_generating = True
+
         asyncio.run(self.process_response(characters.last_added_character, blocking_queue, messages, characters, actions, tools, game))
     
     @utils.time_it
@@ -152,11 +155,14 @@ class ChatManager:
         """
         self.__stop_generation.set()
         deadline = time.time() + 15
-        while self.__is_generating:
-            if time.time() > deadline:
-                logger.warning("stop_generation timed out after 15s, forcing state reset")
-                self.__is_generating = False
-                break
+        while True:
+            with self.__gen_lock:
+                if not self.__is_generating:
+                    break
+                if time.time() > deadline:
+                    logger.warning("stop_generation timed out after 15s, forcing state reset")
+                    self.__is_generating = False
+                    break
             time.sleep(0.01)
         self.__stop_generation.clear()
         return
@@ -192,7 +198,9 @@ class ChatManager:
             pending_sentence: SentenceContent | None = None
             self.__is_first_sentence = True
             is_multi_npc = characters.contains_multiple_npcs()
-            max_response_sentences = self.__config.max_response_sentences_single if not is_multi_npc else self.__config.max_response_sentences_multi
+            config_max = self.__config.max_response_sentences_single if not is_multi_npc else self.__config.max_response_sentences_multi
+            npc_max = active_character.get_custom_character_value('max_response_sentences') if active_character.custom_character_values else None
+            max_response_sentences = int(npc_max) if npc_max is not None else config_max
             max_retries = 5
             retries = 0
 
@@ -447,4 +455,5 @@ class ChatManager:
                     # This sentence is required to make sure there is one in case the game is already waiting for it
                     # before the ChatManager realises there is not another message coming from the LLM
                     blocking_queue.put(Sentence(SentenceContent(active_character,"",SentenceTypeEnum.SPEECH, True),"",0))
-                    self.__is_generating = False
+                    with self.__gen_lock:
+                        self.__is_generating = False
