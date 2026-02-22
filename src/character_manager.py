@@ -4,10 +4,11 @@ from src.games.equipment import Equipment
 class Character:
     """Representation of a character in the game
     """
-    def __init__(self, base_id: str, ref_id: str,  name: str, gender: int, race: str, is_player_character: bool, bio: str, is_in_combat: bool, is_enemy: bool, relationship_rank: int, is_generic_npc: bool, ingame_voice_model:str, tts_voice_model: str, csv_in_game_voice_model: str, advanced_voice_model: str, voice_accent: str, voice_language: str, equipment:Equipment, custom_character_values: dict[str, Any], prompt_name: str = None, wiki: str = ""):
+    def __init__(self, base_id: str, ref_id: str,  name: str, gender: int, race: str, is_player_character: bool, bio: str, is_in_combat: bool, is_enemy: bool, relationship_rank: int, is_generic_npc: bool, ingame_voice_model:str, tts_voice_model: str, csv_in_game_voice_model: str, advanced_voice_model: str, voice_accent: str, voice_language: str, equipment:Equipment, custom_character_values: dict[str, Any], prompt_name: str = None, wiki: str = "", game_name: str = None):
         self.__base_id: str = base_id
         self.__ref_id: str = ref_id
         self.__name: str = name
+        self.__game_name: str = game_name if game_name else name  # Original game name for Papyrus communication
         self.__prompt_name: str = prompt_name if prompt_name else name  # Name used in LLM prompt, defaults to actual name
         self.__gender: int = gender
         self.__race: str = race
@@ -50,6 +51,15 @@ class Character:
     @name.setter
     def name(self, value: str):
         self.__name = value
+
+    @property
+    def game_name(self) -> str:
+        """Original game name for Papyrus communication (e.g. 'Resident' even when name is 'Earnest Todd')"""
+        return self.__game_name
+
+    @game_name.setter
+    def game_name(self, value: str):
+        self.__game_name = value
 
     @property
     def prompt_name(self) -> str:

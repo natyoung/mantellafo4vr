@@ -104,14 +104,14 @@ class GameStateManager:
         }
         
         # For Fallout 4: Look up quest FormIDs for the NPC so Papyrus can check their status
-        # If quest IDs are found, delay LLM call until game sends back quest context
+        # NOTE: LLM delay disabled — Papyrus quest stage reporting not yet implemented.
+        # When Papyrus side is ready, re-enable the delay by uncommenting the line below.
         if self.__config.game.base_game == GameEnum.FALLOUT4:
             quest_ids = self._get_quest_ids_for_conversation(input_json)
             if quest_ids:
-                logger.info(f"Quest FormIDs for conversation: {quest_ids} - delaying LLM until context arrives")
+                logger.info(f"Quest FormIDs for conversation: {quest_ids}")
                 response[comm_consts.KEY_QUEST_IDS_TO_CHECK] = quest_ids
-                # Delay LLM call until game sends back quest context
-                self.__talk.waiting_for_game_context = True
+                # self.__talk.waiting_for_game_context = True
         
         self.__talk.start_conversation()
         
@@ -240,7 +240,7 @@ class GameStateManager:
                     
                     return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCACTION,
                             comm_consts.KEY_REPLYTYPE_NPCACTION: {
-                                'mantella_actor_speaker': npcs_in_conversation.last_added_character.name,
+                                'mantella_actor_speaker': npcs_in_conversation.last_added_character.game_name,
                                 'mantella_actor_actions': [{'identifier': action.identifier}],
                                 }
                             }
@@ -296,7 +296,7 @@ class GameStateManager:
     @utils.time_it
     def sentence_to_json(self, sentence_to_prepare: Sentence, topicID: int) -> dict[str, Any]:
         json_dict = {
-            comm_consts.KEY_ACTOR_SPEAKER: sentence_to_prepare.speaker.name,
+            comm_consts.KEY_ACTOR_SPEAKER: sentence_to_prepare.speaker.game_name,
             comm_consts.KEY_ACTOR_LINETOSPEAK: self.__abbreviate_text(sentence_to_prepare.text.strip()),
             comm_consts.KEY_ACTOR_ISNARRATION: sentence_to_prepare.is_narration,
             comm_consts.KEY_ACTOR_VOICEFILE: sentence_to_prepare.voice_file,
@@ -378,6 +378,7 @@ class GameStateManager:
                 base_id = base_id[-6:]
 
             character_name: str = str(json[comm_consts.KEY_ACTOR_NAME])
+            game_name: str = character_name  # preserve original game name for Papyrus
             gender: int = int(json[comm_consts.KEY_ACTOR_GENDER])
             race: str = str(json[comm_consts.KEY_ACTOR_RACE])
             actor_voice_model: str = str(json[comm_consts.KEY_ACTOR_VOICETYPE])
@@ -407,6 +408,7 @@ class GameStateManager:
                 already_loaded_character: Character | None = self.__talk.get_character(ref_id)
                 if already_loaded_character:
                     character_name = already_loaded_character.name
+                    game_name = already_loaded_character.game_name
                     bio = already_loaded_character.bio
                     wiki = already_loaded_character.wiki
                     tts_voice_model = already_loaded_character.tts_voice_model
@@ -462,7 +464,8 @@ class GameStateManager:
                             equipment,
                             custom_values,
                             prompt_name,
-                            wiki=wiki)
+                            wiki=wiki,
+                            game_name=game_name)
         except CharacterDoesNotExist:                 
             logger.error('Character not loaded. Restarting...')
             return None 
