@@ -1,4 +1,5 @@
 from typing import Any, Hashable
+import time
 import regex
 from src.config.definitions.llm_definitions import NarrationHandlingEnum
 from src.config.definitions.game_definitions import GameEnum
@@ -49,10 +50,36 @@ class GameStateManager:
         self.__automatic_greeting: bool = config.automatic_greeting
         self.__conv_has_narrator: bool = config.narration_handling == NarrationHandlingEnum.USE_NARRATOR
         self.__should_reload: bool = False
+        self.__last_start_time: float = 0
+        self.__last_start_actors: set[int] = set()
 
     ###### react to calls from the game #######
     @utils.time_it
     def start_conversation(self, input_json: dict[str, Any]) -> dict[str, Any]:
+        # Debounce: if same actors within cooldown, reuse existing conversation
+        COOLDOWN_SECONDS = 10
+        actors = input_json.get(comm_consts.KEY_ACTORS, [])
+        actor_ids = {a.get(comm_consts.KEY_ACTOR_BASEID, -1) for a in actors}
+        now = time.time()
+        if (self.__talk
+                and actor_ids == self.__last_start_actors
+                and (now - self.__last_start_time) < COOLDOWN_SECONDS):
+            logger.info(f"Debounced start_conversation (same actors within {COOLDOWN_SECONDS}s)")
+            self.__update_context(input_json)
+            response: dict[str, Any] = {
+                comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTTYPE_STARTCONVERSATIONCOMPLETED,
+                comm_consts.KEY_STARTCONVERSATION_USENARRATOR: self.__conv_has_narrator
+            }
+            if self.__config.game.base_game == GameEnum.FALLOUT4:
+                quest_ids = self._get_quest_ids_for_conversation(input_json)
+                if quest_ids:
+                    response[comm_consts.KEY_QUEST_IDS_TO_CHECK] = quest_ids
+            return response
+
+        # Record this start for future debounce checks
+        self.__last_start_time = now
+        self.__last_start_actors = actor_ids
+
         if self.__talk: #This should only happen if game and server are out of sync due to some previous error -> close conversation and start a new one
             self.__talk.end()
             self.__talk = None
@@ -229,6 +256,8 @@ class GameStateManager:
 
     @utils.time_it
     def end_conversation(self, input_json: dict[str, Any]) -> dict[str, Any]:
+        self.__last_start_time = 0
+        self.__last_start_actors = set()
         if(self.__talk):
             # Extract end timestamp from game client
             end_timestamp = input_json.get(comm_consts.KEY_ENDCONVERSATION_TIMESTAMP, None)
