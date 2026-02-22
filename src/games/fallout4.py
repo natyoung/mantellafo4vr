@@ -14,6 +14,7 @@ from src.games.gameable import Gameable
 import src.utils as utils
 from src.config.definitions.game_definitions import GameEnum
 from src.config.definitions.tts_definitions import TTSEnum
+from src.generic_npc_registry import GenericNPCRegistry, GENERIC_NPC_NAMES
 
 logger = utils.get_logger()
 
@@ -39,6 +40,10 @@ class Fallout4(Gameable):
         #self.__playback: audio_playback = audio_playback(config)
         self.__last_played_voiceline: str | None = None
         self.__image_analysis_filepath = config.game_path
+
+        registry_path = os.path.join(config.save_folder, "generic_npc_registry.json")
+        self._generic_npc_registry = GenericNPCRegistry(registry_path)
+        self._generic_npc_voice_pool: dict[str, list[str]] = {"male": [], "female": []}
 
     @property
     def extender_name(self) -> str:
@@ -81,6 +86,21 @@ class Fallout4(Gameable):
         # DEBUG: Log what's in character_info to track override issues
         logger.info(f"[LOAD CHAR DEBUG] character_info keys: {list(character_info.keys())}")
         logger.info(f"[LOAD CHAR DEBUG] name='{character_info.get('name')}', prompt_name='{character_info.get('prompt_name', 'NOT SET')}'")
+
+        # Assign persistent identity to generic NPCs via registry
+        if is_generic_npc and ref_id and character_info.get("name", "") in GENERIC_NPC_NAMES:
+            character_race = race.split('<')[1].split('Race')[0].strip().rstrip('>') if '<' in race else race
+            identity = self._generic_npc_registry.lookup(ref_id)
+            if not identity:
+                identity = self._generic_npc_registry.register(
+                    ref_id, gender, character_race, character_info["name"], self._generic_npc_voice_pool
+                )
+            character_info["name"] = identity.assigned_name
+            character_info["bio"] = identity.bio
+            if identity.voice_model:
+                character_info["voice_model"] = identity.voice_model
+            is_generic_npc = False
+            logger.info(f"[GENERIC NPC] ref_id={ref_id} → {identity.assigned_name} (voice={identity.voice_model})")
 
         bio = character_info.get("bio", "")
         wiki = character_info.get("wiki", "")

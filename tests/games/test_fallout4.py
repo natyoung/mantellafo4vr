@@ -272,6 +272,54 @@ def test_load_external_character_info(fallout4: Fallout4):
     assert info.bio == "You are a male Human Unknown Character."
 
 
+def test_generic_npc_gets_unique_identity(fallout4: Fallout4):
+    """Test that a generic NPC (Settler) gets a unique name/bio via the registry"""
+    info = fallout4.load_external_character_info(
+        base_id='unknown',
+        name='Settler',
+        race='[Race <HumanRace (00013746)>]',
+        gender=1,
+        ingame_voice_model='[VoiceType <FemaleBoston (00023324)>]',
+        ref_id='13C4A4',
+    )
+    assert info.name != 'Settler'
+    assert len(info.name) > 0
+    assert info.is_generic_npc == False  # now has persistent identity
+    assert 'Settler' not in info.bio  # bio should use the assigned name
+
+
+def test_generic_npc_same_ref_id_same_identity(fallout4: Fallout4):
+    """Test that the same ref_id always gets the same assigned identity"""
+    info1 = fallout4.load_external_character_info(
+        base_id='unknown', name='Settler',
+        race='[Race <HumanRace (00013746)>]', gender=0,
+        ingame_voice_model='[VoiceType <MaleBoston (00023323)>]',
+        ref_id='AABB01',
+    )
+    info2 = fallout4.load_external_character_info(
+        base_id='unknown', name='Settler',
+        race='[Race <HumanRace (00013746)>]', gender=0,
+        ingame_voice_model='[VoiceType <MaleBoston (00023323)>]',
+        ref_id='AABB01',
+    )
+    assert info1.name == info2.name
+    assert info1.bio == info2.bio
+
+
+def test_non_generic_npc_not_renamed(fallout4: Fallout4):
+    """Test that a non-generic unknown NPC (Custom Mod NPC) keeps its name"""
+    info = fallout4.load_external_character_info(
+        base_id='unknown',
+        name='Custom Mod NPC',
+        race='[Race <HumanRace (00013746)>]',
+        gender=0,
+        ingame_voice_model='[VoiceType <MaleBoston (00023323)>]',
+        ref_id='CUSTOM1',
+    )
+    assert info.name == 'Custom Mod NPC'
+    assert info.is_generic_npc == True  # remains generic since not in GENERIC_NPC_NAMES
+
+
 def test_prepare_sentence_for_game(tmp_path, fallout4: Fallout4, default_config: ConfigLoader, example_fallout4_npc_character: Character):
     """Test that prepare_sentence_for_game correctly processes audio files based on configuration"""
     default_config.save_audio_data_to_character_folder = False # NOTE: This is not tested as it may be soon deprecated
