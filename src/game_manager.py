@@ -388,8 +388,11 @@ class GameStateManager:
                     prompt_name = already_loaded_character.prompt_name
             elif self.__talk and not is_player_character :#If this is not the player and the character has not already been loaded
                 external_info: external_character_info = self.__game.load_external_character_info(base_id, character_name, race, gender, actor_voice_model)
-                
-                # DEBUG: Log external_info to track override issues                
+
+                # Inject per-NPC max_response_sentences into custom_values if set in override
+                if external_info.max_response_sentences is not None:
+                    custom_values['max_response_sentences'] = external_info.max_response_sentences
+
                 bio = external_info.bio
                 wiki = external_info.wiki
                 tts_voice_model = external_info.tts_voice_model

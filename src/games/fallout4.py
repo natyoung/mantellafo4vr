@@ -86,11 +86,11 @@ class Fallout4(Gameable):
         wiki = character_info.get("wiki", "")
 
         return external_character_info(
-            character_info["name"], is_generic_npc, bio, actor_voice_model_name, 
-            character_info['voice_model'], character_info['fallout4_voice_folder'], 
-            character_info['advanced_voice_model'], character_info.get('voice_accent', None), 
+            character_info["name"], is_generic_npc, bio, actor_voice_model_name,
+            character_info['voice_model'], character_info['fallout4_voice_folder'],
+            character_info['advanced_voice_model'], character_info.get('voice_accent', None),
             character_info.get('voice_language', None), character_info.get('prompt_name', None),
-            wiki=wiki
+            wiki=wiki, max_response_sentences=character_info.get('max_response_sentences', None)
         ) 
     
     @utils.time_it

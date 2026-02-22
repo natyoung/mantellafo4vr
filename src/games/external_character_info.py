@@ -1,18 +1,19 @@
 class external_character_info:
     """_summary_
     """
-    def __init__(self, name: str, is_generic_npc: bool, bio: str, ingame_voice_model: str, tts_voice_model: str, csv_in_game_voice_model: str, advanced_voice_model: str, voice_accent: str, voice_language: str, prompt_name: str = None, wiki: str = "") -> None:
+    def __init__(self, name: str, is_generic_npc: bool, bio: str, ingame_voice_model: str, tts_voice_model: str, csv_in_game_voice_model: str, advanced_voice_model: str, voice_accent: str, voice_language: str, prompt_name: str = None, wiki: str = "", max_response_sentences: int | None = None) -> None:
         self.__name: str = name
         self.__prompt_name: str = prompt_name if prompt_name else name
         self.__is_generic_npc: bool = is_generic_npc
         self.__bio: str = bio
         self.__wiki: str = wiki
         self.__ingame_voice_model: str = ingame_voice_model
-        self.__tts_voice_model: str = tts_voice_model  
+        self.__tts_voice_model: str = tts_voice_model
         self.__csv_in_game_voice_model: str = csv_in_game_voice_model
         self.__advanced_voice_model: str = advanced_voice_model
         self.__voice_accent: str = voice_accent
         self.__voice_language: str = voice_language
+        self.__max_response_sentences: int | None = max_response_sentences
     
     @property
     def name(self) -> str:
@@ -57,3 +58,7 @@ class external_character_info:
     @property
     def voice_language(self) -> str:
         return self.__voice_language
+
+    @property
+    def max_response_sentences(self) -> int | None:
+        return self.__max_response_sentences
