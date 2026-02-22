@@ -406,6 +406,7 @@ class GameStateManager:
             if self.__talk and self.__talk.contains_character(ref_id):
                 already_loaded_character: Character | None = self.__talk.get_character(ref_id)
                 if already_loaded_character:
+                    character_name = already_loaded_character.name
                     bio = already_loaded_character.bio
                     wiki = already_loaded_character.wiki
                     tts_voice_model = already_loaded_character.tts_voice_model
