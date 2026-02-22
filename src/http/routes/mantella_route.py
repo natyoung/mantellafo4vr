@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Hashable
 
@@ -92,13 +93,13 @@ class mantella_route(routeable):
                         logger.debug('Mantella settings initialized')
                         reply = {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTTYPE_INITCOMPLETED}
                     case comm_consts.KEY_REQUESTTYPE_STARTCONVERSATION:
-                        reply = self.__game.start_conversation(received_json)
+                        reply = await asyncio.to_thread(self.__game.start_conversation, received_json)
                     case comm_consts.KEY_REQUESTTYPE_CONTINUECONVERSATION:
-                        reply = self.__game.continue_conversation(received_json)
+                        reply = await asyncio.to_thread(self.__game.continue_conversation, received_json)
                     case comm_consts.KEY_REQUESTTYPE_PLAYERINPUT:
-                        reply = self.__game.player_input(received_json)
+                        reply = await asyncio.to_thread(self.__game.player_input, received_json)
                     case comm_consts.KEY_REQUESTTYPE_ENDCONVERSATION:
-                        reply = self.__game.end_conversation(received_json)
+                        reply = await asyncio.to_thread(self.__game.end_conversation, received_json)
                     case _:
                         reply = self.error_message(f"Request type '{request_type}' was not recognized")
             else:
