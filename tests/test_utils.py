@@ -16,7 +16,7 @@ def decorated_dummy_function(delay=0.01):
     return "done"
 
 def test_time_it_decorator(caplog: LogCaptureFixture):
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="Mantella")
     result = decorated_dummy_function(0.01)
     assert result == "done"
     # Check that a debug log about timing is generated
@@ -156,7 +156,7 @@ def test_cleanup_mei_no_mei(caplog: LogCaptureFixture):
     assert not any("runtime folder" in record.message for record in caplog.records)
 
 def test_cleanup_mei_with_fake_mei(monkeypatch: MonkeyPatch, tmp_path: Path, caplog: LogCaptureFixture):
-    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger="Mantella")
     
     # Create the current MEI directory (where the exe files currently sit) in tmp_path
     current_mei_dir = tmp_path / "_MEI1234"

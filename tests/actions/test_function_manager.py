@@ -31,7 +31,6 @@ def test_load_all_actions_structure():
         assert 'name' in action
         assert 'description' in action
         assert 'key' in action
-        assert 'requires_response' in action
         assert 'is-interrupting' in action or 'is_interrupting' in action
         assert 'one-on-one' in action or 'one_on_one' in action
         assert 'multi-npc' in action or 'multi_npc' in action

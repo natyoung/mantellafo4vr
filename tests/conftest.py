@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 from src import utils
 from src.config.definitions.game_definitions import GameEnum
+from src.config.definitions.tts_definitions import TTSEnum
 from src.http.communication_constants import communication_constants as comm_consts
 from src.http import models
 from src.character_manager import Character
@@ -61,6 +62,9 @@ def english_language_info() -> dict:
 
 @pytest.fixture
 def piper(default_config: ConfigLoader, skyrim: Skyrim) -> Piper:
+    piper_exe = Path(default_config.piper_path) / 'piper.exe'
+    if not piper_exe.exists():
+        pytest.skip(f"Piper not installed at {piper_exe}")
     return Piper(default_config, skyrim)
 
 @pytest.fixture
@@ -106,6 +110,11 @@ def server() -> http_server:
 
 @pytest.fixture
 def default_mantella_route(default_config: ConfigLoader, english_language_info: dict) -> mantella_route:
+    # Default TTS is Piper; skip if Piper isn't installed
+    if default_config.tts_service == TTSEnum.PIPER:
+        piper_exe = Path(default_config.piper_path) / 'piper.exe'
+        if not piper_exe.exists():
+            pytest.skip(f"Piper not installed at {piper_exe}")
     return mantella_route(
         config=default_config, 
         stt_secret_key_file='STT_SECRET_KEY.txt', 

@@ -127,6 +127,15 @@ def test_setup_route(default_mantella_route: mantella_route):
 )
 def test_setup_route_combinations(default_config: ConfigLoader, english_language_info: dict, game_enum: GameEnum, tts_service: TTSEnum):
     """Test that the setup route method works with different game and TTS combinations"""
+    from pathlib import Path
+    if tts_service == TTSEnum.PIPER:
+        piper_exe = Path(default_config.piper_path) / 'piper.exe'
+        if not piper_exe.exists():
+            pytest.skip(f"Piper not installed at {piper_exe}")
+    if tts_service == TTSEnum.XVASYNTH:
+        xvasynth_exe = Path(default_config.xvasynth_path) / 'xVASynth.exe'
+        if not xvasynth_exe.exists():
+            pytest.skip(f"xVASynth not installed at {xvasynth_exe}")
     # Set the game and TTS service on the config
     default_config.game = game_enum
     default_config.tts_service = tts_service
@@ -149,7 +158,12 @@ def test_setup_route_combinations(default_config: ConfigLoader, english_language
     assert route._mantella_route__game is not None
 
 def test_setup_route_ends_conversation(default_config: ConfigLoader, english_language_info: dict):
-    """Test that calling setup_route creates a new game instance when called multiple times"""
+    """Test that calling setup_route creates a new game instance when called multiple times.
+    Requires Piper TTS to be installed (creates real game/TTS stack internally)."""
+    from pathlib import Path
+    piper_exe = Path(default_config.piper_path) / 'piper.exe'
+    if not piper_exe.exists():
+        pytest.skip(f"Piper not installed at {piper_exe}")
     # Create route instance
     route = mantella_route(
         config=default_config, 
