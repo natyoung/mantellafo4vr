@@ -39,6 +39,7 @@ class Fallout4(Gameable):
         self.__FO4_Voice_folder_and_models_df = pd.read_csv(Fallout4.FO4_XVASynth_file, engine='python', encoding=encoding)
         #self.__playback: audio_playback = audio_playback(config)
         self.__last_played_voiceline: str | None = None
+        self.__last_fuz_topic_id: int = 0
         self.__image_analysis_filepath = config.game_path
 
         registry_path = os.path.join(config.save_folder, "generic_npc_registry.json")
@@ -257,6 +258,20 @@ class Fallout4(Gameable):
         """
         import re
         return re.sub(r'\s*\([0-9A-Fa-f]+\)$', '', voice_model)
+
+    def get_corrected_topic_id(self, requested_topic_id: int) -> int:
+        """Force topicID alternation to prevent FO4 audio caching.
+
+        FO4 caches audio by filename. Two dialogue slots alternate (topicID 1/2)
+        so each new line overwrites a different file. Concurrent HTTP requests can
+        cause the game to send the same topicID twice; this corrects it.
+        """
+        if requested_topic_id == self.__last_fuz_topic_id:
+            corrected = 1 if requested_topic_id == 2 else 2
+            logger.info(f"[TOPIC FIX] Forcing alternation: {requested_topic_id} -> {corrected}")
+            requested_topic_id = corrected
+        self.__last_fuz_topic_id = requested_topic_id
+        return requested_topic_id
 
     @utils.time_it
     def prepare_sentence_for_game(self, queue_output: Sentence, context_of_conversation: 'Context', config: ConfigLoader, topicID: int, isFirstLine: bool):

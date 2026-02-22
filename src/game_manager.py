@@ -133,6 +133,7 @@ class GameStateManager:
             self.__should_reload = False
 
         topicInfoID: int = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1))
+        topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
 
         self.__update_context(input_json)
         
@@ -248,6 +249,7 @@ class GameStateManager:
         # if the player response is not an action command, return a regular player reply type
         if player_spoken_sentence:
             topicInfoID: int = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1))
+            topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
             self.__game.prepare_sentence_for_game(player_spoken_sentence, self.__talk.context, self.__config, topicInfoID, self.__first_line)
             self.__first_line = False
             return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(player_spoken_sentence, topicInfoID)}
