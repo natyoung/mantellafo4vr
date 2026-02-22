@@ -203,6 +203,7 @@ def example_skyrim_player_character() -> Character:
         csv_in_game_voice_model = 'MaleEvenToned',
         advanced_voice_model = 'MaleEvenToned',
         voice_accent = 'en',
+        voice_language = None,
         equipment = Equipment({
             'body': EquipmentItem('Iron Armor'),
             'feet': EquipmentItem('Iron Boots'),
@@ -232,6 +233,7 @@ def example_skyrim_npc_character() -> Character:
         csv_in_game_voice_model = 'MaleEvenToned',
         advanced_voice_model = 'MaleEvenToned',
         voice_accent = 'en',
+        voice_language = None,
         equipment = Equipment({
             'body': EquipmentItem('Iron Armor'),
             'feet': EquipmentItem('Iron Boots'),
@@ -245,22 +247,23 @@ def example_skyrim_npc_character() -> Character:
 @pytest.fixture
 def another_example_skyrim_npc_character() -> Character:
     return Character(
-        base_id='1', 
-        ref_id='1', 
-        name='Lydia', 
-        gender=1, 
+        base_id='1',
+        ref_id='1',
+        name='Lydia',
+        gender=1,
         race='Nord',
-        is_player_character=False, 
-        bio='You are Lydia.', 
-        is_in_combat=False, 
+        is_player_character=False,
+        bio='You are Lydia.',
+        is_in_combat=False,
         is_enemy=False,
-        relationship_rank=0, 
-        is_generic_npc=False, 
+        relationship_rank=0,
+        is_generic_npc=False,
         ingame_voice_model='FemaleEvenToned',
-        tts_voice_model='FemaleEvenToned', 
+        tts_voice_model='FemaleEvenToned',
         csv_in_game_voice_model='FemaleEvenToned',
-        advanced_voice_model='FemaleEvenToned', 
+        advanced_voice_model='FemaleEvenToned',
         voice_accent='en',
+        voice_language=None,
         equipment = Equipment({
             'body': EquipmentItem('Iron Armor'),
             'feet': EquipmentItem('Iron Boots'),
@@ -307,6 +310,7 @@ def example_fallout4_npc_character() -> Character:
         csv_in_game_voice_model = 'MaleBoston',
         advanced_voice_model = None,
         voice_accent = None,
+        voice_language = None,
         equipment = None,
         custom_character_values = None,
     )
