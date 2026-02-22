@@ -695,16 +695,20 @@ class Conversation:
         return None
 
     @utils.time_it
-    def end(self, end_timestamp: float | None = None):
+    def end(self, end_timestamp: float | None = None, async_save: bool = False):
         """Ends a conversation
-        
+
         Args:
             end_timestamp: Optional game timestamp (days passed as float) when conversation ends
+            async_save: If True, run conversation save in a background thread (avoids blocking start_conversation)
         """
         self.__has_already_ended = True
         self.__stop_generation()
         self.__sentences.clear()
-        self.__save_conversation(is_reload=False, end_timestamp=end_timestamp)
+        if async_save:
+            Thread(target=self.__save_conversation, args=(False, end_timestamp), daemon=True).start()
+        else:
+            self.__save_conversation(is_reload=False, end_timestamp=end_timestamp)
     
     @utils.time_it
     def __start_generating_npc_sentences(self, allow_tool_use: bool = True):

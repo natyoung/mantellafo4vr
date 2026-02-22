@@ -81,7 +81,7 @@ class GameStateManager:
         self.__last_start_actors = actor_ids
 
         if self.__talk: #This should only happen if game and server are out of sync due to some previous error -> close conversation and start a new one
-            self.__talk.end()
+            self.__talk.end(async_save=True)
             self.__talk = None
 
         world_id = "default"
