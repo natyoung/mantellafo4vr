@@ -708,9 +708,9 @@ class Conversation:
     
     @utils.time_it
     def __start_generating_npc_sentences(self, allow_tool_use: bool = True):
-        """Starts a background Thread to generate sentences into the SentenceQueue"""    
+        """Starts a background Thread to generate sentences into the SentenceQueue"""
         with self.__generation_start_lock:
-            if not self.__generation_thread:
+            if not self.__generation_thread or not self.__generation_thread.is_alive():
                 self.__sentences.is_more_to_come = True
                 # Generate tools if advanced actions are enabled
                 tools = None
