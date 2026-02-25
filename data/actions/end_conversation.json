@@ -9,7 +9,7 @@
     "requires_response": false,
     "is-interrupting": false,
     "allow_repeat": false,
-    "one-on-one": false,
+    "one-on-one": true,
     "multi-npc": false,
     "radiant": true
 }
