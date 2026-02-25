@@ -52,10 +52,21 @@ class GameStateManager:
         self.__should_reload: bool = False
         self.__last_start_time: float = 0
         self.__last_start_actors: set[int] = set()
+        self.__last_activity_time: float = 0
 
     ###### react to calls from the game #######
     @utils.time_it
     def start_conversation(self, input_json: dict[str, Any]) -> dict[str, Any]:
+        # Stale conversation cleanup: if no activity for 30s, the game-side script
+        # likely dropped the ball (common in FO4VR). Clean up so this attempt gets a fresh start.
+        STALE_SECONDS = 30
+        if self.__talk and self.__last_activity_time and (time.time() - self.__last_activity_time) > STALE_SECONDS:
+            logger.warning(f"Cleaning up stale conversation (no activity for {time.time() - self.__last_activity_time:.0f}s)")
+            self.__talk.end(async_save=True)
+            self.__talk = None
+            self.__last_start_time = 0
+            self.__last_start_actors = set()
+
         # Debounce: if same actors within cooldown, reuse existing conversation
         COOLDOWN_SECONDS = 10
         actors = input_json.get(comm_consts.KEY_ACTORS, [])
@@ -79,6 +90,7 @@ class GameStateManager:
         # Record this start for future debounce checks
         self.__last_start_time = now
         self.__last_start_actors = actor_ids
+        self.__last_activity_time = now
 
         if self.__talk: #This should only happen if game and server are out of sync due to some previous error -> close conversation and start a new one
             self.__talk.end(async_save=True)
@@ -122,7 +134,9 @@ class GameStateManager:
     def continue_conversation(self, input_json: dict[str, Any]) -> dict[str, Any]:
         if(not self.__talk ):
             return self.error_message("No running conversation.")
-        
+
+        self.__last_activity_time = time.time()
+
         # comm_consts.KEY_INPUTTYPE is passed when the mic settings have been changed in the MCM since beginning the conversation
         # If this happens, switch the STT settings to match the new input type
         if input_json.__contains__(comm_consts.KEY_INPUTTYPE):
@@ -210,7 +224,8 @@ class GameStateManager:
     def player_input(self, input_json: dict[str, Any]) -> dict[str, Any]:
         if(not self.__talk ):
             return self.error_message("No running conversation.")
-        
+
+        self.__last_activity_time = time.time()
         self.__first_line = True
         
         player_text: str = input_json.get(comm_consts.KEY_REQUESTTYPE_PLAYERINPUT, '')
@@ -549,9 +564,7 @@ class GameStateManager:
 
         Then pre-load the NPC's voice model
         '''
-        is_npc_speaking_first: bool = self.__automatic_greeting
-
-        if not self.__talk.context.npcs_in_conversation.contains_multiple_npcs() and is_npc_speaking_first and not self.__conv_has_narrator:
+        if not self.__talk.context.npcs_in_conversation.contains_multiple_npcs() and not self.__conv_has_narrator:
             character_to_talk = self.__talk.context.npcs_in_conversation.last_added_character
             if character_to_talk:
                 self.__talk.output_manager.tts.change_voice(
