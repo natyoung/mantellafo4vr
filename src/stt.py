@@ -522,12 +522,20 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
                     self._temporary_pause_override = None  # Reset temporary pause after transcription
                     logger.log(self.loglevel, f"Player said '{transcription.strip()}'")
                     return transcription
-                
+
+            # Event fired but transcription was empty — likely a spurious wakeup
+            # from background noise or NPC audio bleed. If still listening, just
+            # clear the event and wait for real speech.
+            self._transcription_ready.clear()
+            if self._running:
+                logger.debug('Spurious transcription event (empty result), waiting for real speech...')
+                continue
+
+            # Not running anymore (stop_listening was called) — no more speech coming
             if self.play_cough_sound:
                 utils.play_no_mic_input_detected_sound()
             logger.warning('Could not detect speech from mic input')
 
-            self._transcription_ready.clear()
             self._speech_detected = False
             self._current_transcription = ''
 
