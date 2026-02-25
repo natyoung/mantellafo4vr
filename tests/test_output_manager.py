@@ -24,9 +24,11 @@ class MockAIClient:
         self.error_on_call = error_on_call
         self.delay = delay
         self.call_count = 0  # Track number of calls for two-call (tools, text) pattern simulation
+        self.last_model_override = None  # Track model override passed to streaming_call
         
-    async def streaming_call(self, messages=None, is_multi_npc=False, tools=None):
+    async def streaming_call(self, messages=None, is_multi_npc=False, tools=None, model_override=None):
         """Simulates streaming call with configurable response patterns"""
+        self.last_model_override = model_override
         if self.error_on_call:
             raise Exception("Simulated API error")
         
@@ -591,3 +593,58 @@ async def test_process_response_param(
 
     assert actual == expected_texts
     assert actual_types == expected_types
+
+
+def test_load_npc_model_overrides_missing_file(tmp_path, monkeypatch):
+    """Test that missing overrides file returns empty dict"""
+    monkeypatch.chdir(tmp_path)
+    result = ChatManager._load_npc_model_overrides()
+    assert result == {}
+
+
+def test_load_npc_model_overrides_valid_file(tmp_path, monkeypatch):
+    """Test loading a valid overrides file, filtering out _comment keys"""
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    overrides_file = data_dir / "npc_model_overrides.json"
+    overrides_file.write_text('{"_comment": "ignore me", "Nick Valentine": "anthropic/claude-sonnet-4"}')
+
+    result = ChatManager._load_npc_model_overrides()
+    assert result == {"Nick Valentine": "anthropic/claude-sonnet-4"}
+
+
+def test_load_npc_model_overrides_invalid_json(tmp_path, monkeypatch):
+    """Test that invalid JSON returns empty dict without crashing"""
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    overrides_file = data_dir / "npc_model_overrides.json"
+    overrides_file.write_text("not valid json {{{")
+
+    result = ChatManager._load_npc_model_overrides()
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_process_response_model_override_passed(output_manager: ChatManager, example_skyrim_npc_character: Character, example_characters_pc_to_npc: Characters, mock_queue: SentenceQueue, mock_messages: message_thread, mock_actions: list[Action]):
+    """Test that model_override is passed to streaming_call when NPC has an override"""
+    # Set up an override for the test character's name ("Guard")
+    output_manager._ChatManager__npc_model_overrides = {"Guard": "anthropic/claude-sonnet-4"}
+
+    await output_manager.process_response(example_skyrim_npc_character, mock_queue, mock_messages, example_characters_pc_to_npc, mock_actions, tools=None)
+
+    client = output_manager._ChatManager__client
+    assert client.last_model_override == "anthropic/claude-sonnet-4"
+
+
+@pytest.mark.asyncio
+async def test_process_response_no_model_override(output_manager: ChatManager, example_skyrim_npc_character: Character, example_characters_pc_to_npc: Characters, mock_queue: SentenceQueue, mock_messages: message_thread, mock_actions: list[Action]):
+    """Test that model_override is None when NPC has no override"""
+    # Empty overrides dict (default)
+    output_manager._ChatManager__npc_model_overrides = {}
+
+    await output_manager.process_response(example_skyrim_npc_character, mock_queue, mock_messages, example_characters_pc_to_npc, mock_actions, tools=None)
+
+    client = output_manager._ChatManager__client
+    assert client.last_model_override is None

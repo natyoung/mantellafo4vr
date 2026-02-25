@@ -263,7 +263,7 @@ class ClientBase(AIClient):
         
     
     @utils.time_it
-    async def streaming_call(self, messages: Message | message_thread, is_multi_npc: bool, tools: list[dict] = None) -> AsyncGenerator[tuple[str, str | list] | None, None]:
+    async def streaming_call(self, messages: Message | message_thread, is_multi_npc: bool, tools: list[dict] = None, model_override: str | None = None) -> AsyncGenerator[tuple[str, str | list] | None, None]:
         with create_span_from_thread("llm_streaming_call") as span:
             with self._generation_lock:
                 logger.log(28, 'Getting LLM response...')
@@ -322,8 +322,12 @@ class ClientBase(AIClient):
                     # Dict to track partial tool calls by index
                     accumulated_tool_calls = {}
                     
+                    effective_model = model_override or self.model_name
+                    if model_override:
+                        logger.log(23, f"Using per-NPC model override: {model_override}")
+
                     stream = await async_client.chat.completions.create(
-                        model=self.model_name,
+                        model=effective_model,
                         messages=openai_messages,
                         stream=True,
                         **request_params,

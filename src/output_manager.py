@@ -1,8 +1,10 @@
 import asyncio
+import json
 import threading
 from threading import Lock
 import time
 import unicodedata
+from pathlib import Path
 from openai import APIConnectionError
 from src.llm import llm_debug
 from src.llm.output.sentence_accumulator import sentence_accumulator
@@ -52,6 +54,24 @@ class ChatManager:
         self.__end_conversation_requested: bool = False
         self.__end_of_sentence_chars = ['.', '?', '!', ';', '。', '？', '！', '；']
         self.__end_of_sentence_chars = [unicodedata.normalize('NFKC', char) for char in self.__end_of_sentence_chars]
+        self.__npc_model_overrides: dict[str, str] = self._load_npc_model_overrides()
+
+    @staticmethod
+    def _load_npc_model_overrides() -> dict[str, str]:
+        overrides_path = Path("data/npc_model_overrides.json")
+        if not overrides_path.exists():
+            return {}
+        try:
+            with open(overrides_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Filter out keys starting with _ (like _comment)
+            overrides = {k: v for k, v in data.items() if not k.startswith("_")}
+            if overrides:
+                logger.log(23, f"Loaded {len(overrides)} NPC model override(s): {list(overrides.keys())}")
+            return overrides
+        except Exception as e:
+            logger.warning(f"Failed to load npc_model_overrides.json: {e}")
+            return {}
 
     @property
     def tts(self) -> TTSable:
@@ -238,8 +258,9 @@ class ChatManager:
                 
                 while not has_text_response and retries < max_retries:
                     try:
+                        model_override = self.__npc_model_overrides.get(active_character.name)
                         start_time = time.time()
-                        async for item in self.__client.streaming_call(messages=messages, is_multi_npc=is_multi_npc, tools=current_tools):
+                        async for item in self.__client.streaming_call(messages=messages, is_multi_npc=is_multi_npc, tools=current_tools, model_override=model_override):
                             if self.__stop_generation.is_set():
                                 break
                             if not item:

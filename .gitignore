@@ -5,6 +5,7 @@ data/**/*.wav
 data/**/*.lip
 data/**/*.json
 !data/actions/*.json
+!data/npc_model_overrides.json
 data/**/*.txt
 !data/Fallout4/placeholder/*.lip
 data/tmp/

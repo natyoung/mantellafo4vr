@@ -36,7 +36,7 @@ class MockAIClient:
         self.delay = delay
         self.call_count = 0
 
-    async def streaming_call(self, messages=None, is_multi_npc=False, tools=None):
+    async def streaming_call(self, messages=None, is_multi_npc=False, tools=None, model_override=None):
         self.call_count += 1
         for chunk in self.response_pattern:
             yield ("content", chunk)
