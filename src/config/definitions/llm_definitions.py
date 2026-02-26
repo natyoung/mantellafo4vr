@@ -121,13 +121,13 @@ class LLMDefinitions:
     @staticmethod
     def get_narration_start_indicators() -> ConfigValue:
         description = """List of characters used to identify the start of narrations in the LLM output."""
-        possible_characters = ["*","(","["]
+        possible_characters = ["*","(","[","<"]
         return ConfigValueMultiSelection("narration_start_indicators","Narration start indicators",description,possible_characters, possible_characters, tags=[ConfigValueTag.advanced,ConfigValueTag.share_row])
 
     @staticmethod
     def get_narration_end_indicators() -> ConfigValue:
         description = """List of characters used to identify the start of narrations in the LLM output."""
-        possible_characters = ["*",")","]"]
+        possible_characters = ["*",")","]",">"]
         return ConfigValueMultiSelection("narration_end_indicators","Narration end indicators",description,possible_characters, possible_characters, tags=[ConfigValueTag.advanced,ConfigValueTag.share_row])
 
     @staticmethod
