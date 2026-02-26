@@ -87,21 +87,26 @@ class mantella_route(routeable):
                 if self._show_debug_messages:
                     logger.log(self._log_level_http_in, json.dumps(received_json, indent=4))
                 request_type: str = received_json[comm_consts.KEY_REQUESTTYPE]
-                match request_type:
-                    case comm_consts.KEY_REQUESTTYPE_INIT:
-                        # nothing needs to be done for this request aside from self._can_route_be_used() being triggered
-                        logger.debug('Mantella settings initialized')
-                        reply = {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTTYPE_INITCOMPLETED}
-                    case comm_consts.KEY_REQUESTTYPE_STARTCONVERSATION:
-                        reply = await asyncio.to_thread(self.__game.start_conversation, received_json)
-                    case comm_consts.KEY_REQUESTTYPE_CONTINUECONVERSATION:
-                        reply = await asyncio.to_thread(self.__game.continue_conversation, received_json)
-                    case comm_consts.KEY_REQUESTTYPE_PLAYERINPUT:
-                        reply = await asyncio.to_thread(self.__game.player_input, received_json)
-                    case comm_consts.KEY_REQUESTTYPE_ENDCONVERSATION:
-                        reply = await asyncio.to_thread(self.__game.end_conversation, received_json)
-                    case _:
-                        reply = self.error_message(f"Request type '{request_type}' was not recognized")
+                try:
+                    match request_type:
+                        case comm_consts.KEY_REQUESTTYPE_INIT:
+                            # nothing needs to be done for this request aside from self._can_route_be_used() being triggered
+                            logger.debug('Mantella settings initialized')
+                            reply = {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTTYPE_INITCOMPLETED}
+                        case comm_consts.KEY_REQUESTTYPE_STARTCONVERSATION:
+                            reply = await asyncio.to_thread(self.__game.start_conversation, received_json)
+                        case comm_consts.KEY_REQUESTTYPE_CONTINUECONVERSATION:
+                            reply = await asyncio.to_thread(self.__game.continue_conversation, received_json)
+                        case comm_consts.KEY_REQUESTTYPE_PLAYERINPUT:
+                            reply = await asyncio.to_thread(self.__game.player_input, received_json)
+                        case comm_consts.KEY_REQUESTTYPE_ENDCONVERSATION:
+                            reply = await asyncio.to_thread(self.__game.end_conversation, received_json)
+                        case _:
+                            reply = self.error_message(f"Request type '{request_type}' was not recognized")
+                except Exception as e:
+                    import traceback
+                    logger.error(f"Error handling {request_type}: {e}\n{traceback.format_exc()}")
+                    reply = self.error_message(f"Internal error: {e}")
             else:
                 reply = self.error_message(f"Request did not contain properly formatted json!")
 

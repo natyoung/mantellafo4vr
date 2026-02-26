@@ -67,7 +67,7 @@ class ConversationDB:
     @property
     def conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self.db_path))
+            self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA busy_timeout=5000")
@@ -103,6 +103,16 @@ class ConversationDB:
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (conversation_id, world_id, npc_name, npc_ref_id, role, content,
              1 if is_system_generated else 0, time.time()),
+        )
+        self.conn.commit()
+
+    def mark_last_user_message_system_generated(self, conversation_id: str):
+        """Mark the most recent user message in a conversation as system-generated."""
+        self.conn.execute(
+            """UPDATE messages SET is_system_generated = 1
+               WHERE id = (SELECT id FROM messages WHERE conversation_id = ? AND role = 'user'
+                           ORDER BY created_at DESC LIMIT 1)""",
+            (conversation_id,),
         )
         self.conn.commit()
 

@@ -588,9 +588,10 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
         if set(transcript_words).intersection(activation_names):
             return True
 
-        # Alternatively, if the entire transcript is a keyword, return True
+        # Check if any keyword appears as a substring (handles multi-word keywords
+        # like "never mind", "see you later", "cool story", etc.)
         for activation_name in activation_names:
-            if transcript == activation_name:
+            if activation_name in transcript:
                 return True
 
         return False
