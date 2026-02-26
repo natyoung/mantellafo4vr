@@ -49,6 +49,10 @@ class Gameable(ABC):
 
         self.__conversation_folder_path = os.path.join(config.save_folder, "data", mantella_game_folder_path, "conversations")
         conversation_log.game_path = self.__conversation_folder_path
+
+        from src.conversation.conversation_db import ConversationDB
+        db_path = os.path.join(self.__conversation_folder_path, "conversations.db")
+        self.__conversation_db = ConversationDB(db_path)
     
     @property
     def character_df(self) -> pd.DataFrame:
@@ -78,6 +82,10 @@ class Gameable(ABC):
     @property
     def conversation_folder_path(self) -> str:
         return self.__conversation_folder_path
+
+    @property
+    def conversation_db(self):
+        return self.__conversation_db
     
     @property
     @abstractmethod

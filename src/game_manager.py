@@ -108,7 +108,13 @@ class GameStateManager:
         self.__talk = Conversation(context_for_conversation, self.__chat_manager, self.__rememberer, self.__client, self.__stt, self.__mic_input, self.__mic_ptt, self.__game)
         self.__update_context(input_json)
         self.__try_preload_voice_model()
-        
+
+        # Recover any orphaned conversations from previous crashes
+        if self.__talk and self.__talk.context.npcs_in_conversation:
+            self.__rememberer.recover_orphaned_conversations(
+                self.__talk.context.npcs_in_conversation, world_id
+            )
+
         # Build response
         response: dict[str, Any] = {
             comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTTYPE_STARTCONVERSATIONCOMPLETED,

@@ -29,3 +29,10 @@ class Remembering(ABC):
             pending_shares (list[tuple[str, str, str]] | None): List of (sharer_name, recipient_name, recipient_ref_id) for sharing summaries
         """
         pass
+
+    def recover_orphaned_conversations(self, npcs_in_conversation: Characters, world_id: str):
+        """Recover and summarize messages from crashed conversations.
+
+        Default no-op. Override in subclasses that support crash recovery.
+        """
+        pass

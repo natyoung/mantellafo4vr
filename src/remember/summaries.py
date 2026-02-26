@@ -27,6 +27,7 @@ class Summaries(Remembering):
         self.__language_name: str = language_name
         self.__memory_prompt: str = config.memory_prompt
         self.__resummarize_prompt:str = config.resummarize_prompt
+        self.__db = getattr(game, 'conversation_db', None)
 
     @utils.time_it
     def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str) -> str:
@@ -38,10 +39,30 @@ class Summaries(Remembering):
         Returns:
             str: a concatenation of the summaries as a single string
         """
+        # Try DB-backed summaries first
+        if self.__db:
+            paragraphs = []
+            for character in npcs_in_conversation.get_all_characters():
+                if not character.is_player_character:
+                    base_name = utils.remove_trailing_number(character.name)
+                    db_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
+                    for s in db_summaries:
+                        content = s["content"].strip()
+                        if content:
+                            for line in content.split("\n"):
+                                line = line.strip()
+                                if line and line not in paragraphs:
+                                    paragraphs.append(line)
+            if paragraphs:
+                result = "\n".join(paragraphs)
+                return f"Below is a summary of past events:\n{result}"
+            return ""
+
+        # Fall back to file-based summaries
         paragraphs = []
         for character in npcs_in_conversation.get_all_characters():
-            if not character.is_player_character:          
-                conversation_summary_file = self.__get_latest_conversation_summary_file_path(character.name, character.ref_id, world_id)      
+            if not character.is_player_character:
+                conversation_summary_file = self.__get_latest_conversation_summary_file_path(character.name, character.ref_id, world_id)
                 if os.path.exists(conversation_summary_file):
                     with open(conversation_summary_file, 'r', encoding='utf-8') as f:
                         for line in f:
@@ -57,14 +78,21 @@ class Summaries(Remembering):
     @utils.time_it
     def save_conversation_state(self, messages: message_thread, npcs_in_conversation: Characters, world_id: str, is_reload=False, pending_shares: list[tuple[str, str, str]] | None = None, end_timestamp: float | None = None):
         summary = ''
-        
+
         for npc in npcs_in_conversation.get_all_characters():
             if not npc.is_player_character:
                 if len(summary) < 1: # if a summary has not already been generated, make one
                     summary = self.__create_new_conversation_summary(messages, npc.name, end_timestamp)
                 if len(summary) > 0 or is_reload: # if a summary has been generated, give the same summary to all NPCs
                     self.__append_new_conversation_summary(summary, npc.name, npc.ref_id, world_id)
-        
+                    # Also save to DB
+                    if self.__db and len(summary) > 0:
+                        base_name = utils.remove_trailing_number(npc.name)
+                        from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, npc.ref_id) or 0.0
+                        to_ts = time.time()
+                        self.__db.save_summary(world_id, base_name, npc.ref_id, summary, from_ts, to_ts)
+                        self.__check_db_summary_overflow(world_id, base_name, npc.ref_id, npc.name)
+
         # Handle pending shares: write summary with prefix to recipient folders
         if pending_shares and len(summary) > 0:
             for sharer_name, recipient_name, recipient_ref_id in pending_shares:
@@ -77,12 +105,17 @@ class Summaries(Remembering):
                         participant_names.append(f"{npc.name} (the player)")
                     else:
                         participant_names.append(npc.name)
-                
+
                 # Create prefixed summary
                 participants_text = ", ".join(participant_names) if participant_names else "others"
                 prefixed_summary = f"{sharer_name} shared with {recipient_name} a conversation with {participants_text}:\n{summary}"
-                
+
                 self.__append_new_conversation_summary(prefixed_summary, recipient_name, recipient_ref_id, world_id)
+                # Also save shared summary to DB
+                if self.__db:
+                    base_recipient = utils.remove_trailing_number(recipient_name)
+                    from_ts = self.__db.get_latest_summary_to_ts(world_id, base_recipient, recipient_ref_id) or 0.0
+                    self.__db.save_summary(world_id, base_recipient, recipient_ref_id, prefixed_summary, from_ts, time.time())
                 logger.info(f"Shared conversation summary with {recipient_name}")
 
     @utils.time_it
@@ -213,6 +246,68 @@ class Summaries(Remembering):
 
             with open(new_conversation_summary_file, 'w', encoding='utf-8') as f:
                 f.write(long_conversation_summary)
+
+    def __check_db_summary_overflow(self, world_id: str, base_name: str, ref_id: str, npc_name: str):
+        """If total DB summaries exceed token limit, condense them."""
+        if not self.__db:
+            return
+        all_summaries = self.__db.get_all_summaries(world_id, base_name, ref_id)
+        if not all_summaries:
+            return
+        combined = "\n".join(s["content"] for s in all_summaries)
+        summary_limit = round(self.__client.token_limit * self.__summary_limit_pct, 0)
+        count_tokens = self.__client.get_count_tokens(combined)
+        if count_tokens > summary_limit:
+            logger.info(f'DB summary token limit reached ({count_tokens} / {summary_limit}). Condensing summaries for {base_name}...')
+            prompt = self.__resummarize_prompt.format(
+                name=npc_name,
+                language=self.__language_name,
+                game=self.__game.game_name_in_filepath
+            )
+            condensed = self.summarize_conversation(combined, prompt, npc_name)
+            if condensed:
+                self.__db.replace_summaries(world_id, base_name, ref_id, condensed)
+
+    def recover_orphaned_conversations(self, npcs_in_conversation: Characters, world_id: str):
+        """Recover and summarize messages from crashed conversations (orphans)."""
+        if not self.__db:
+            return
+
+        for character in npcs_in_conversation.get_all_characters():
+            if character.is_player_character:
+                continue
+            base_name = utils.remove_trailing_number(character.name)
+            ref_id = character.ref_id
+
+            orphan_ids = self.__db.get_orphaned_conversation_ids(world_id, base_name, ref_id)
+            if not orphan_ids:
+                continue
+
+            unsummarized = self.__db.get_unsummarized_messages(world_id, base_name, ref_id)
+            if len(unsummarized) < 5:
+                # Not enough messages to summarize, just mark as handled
+                self.__db.mark_conversations_summarized(orphan_ids)
+                continue
+
+            # Build text representation for summarization
+            text_lines = []
+            for msg in unsummarized:
+                role_label = "Player" if msg["role"] == "user" else base_name
+                text_lines.append(f"{role_label}: {msg['content']}")
+            text_to_summarize = "\n".join(text_lines)
+
+            prompt = self.__memory_prompt.format(
+                name=base_name,
+                language=self.__language_name,
+                game=self.__game.game_name_in_filepath
+            )
+            summary = self.summarize_conversation(text_to_summarize, prompt, base_name)
+            if summary:
+                from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, ref_id) or 0.0
+                self.__db.save_summary(world_id, base_name, ref_id, summary, from_ts, time.time())
+                logger.info(f"Recovered orphaned conversation for {base_name} ({len(unsummarized)} messages)")
+
+            self.__db.mark_conversations_summarized(orphan_ids)
 
     @utils.time_it
     def __format_timestamp(self, game_days: float) -> str:

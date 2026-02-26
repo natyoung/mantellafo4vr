@@ -92,6 +92,15 @@ class Conversation:
         self.__dynamic_vocab: str = ""  # LLM-generated vocabulary for Whisper
         self.__waiting_for_game_context: bool = False  # Delay LLM until game context arrives (for two-way communication)
 
+        # Crash-safe conversation DB persistence
+        self.__conversation_db = getattr(game, 'conversation_db', None) if game else None
+        self.__conversation_id: str | None = None
+        self.__db_saved_msg_count: int = 0
+        if self.__conversation_db:
+            self.__conversation_id = self.__conversation_db.start_conversation(
+                context_for_conversation.world_id
+            )
+
     @property
     def has_already_ended(self) -> bool:
         return self.__has_already_ended
@@ -124,6 +133,47 @@ class Conversation:
     def waiting_for_game_context(self, value: bool):
         self.__waiting_for_game_context = value
     
+    def __persist_new_messages(self):
+        """Persist any new talk messages to the conversation DB for crash recovery."""
+        if not self.__conversation_db or not self.__conversation_id:
+            return
+        try:
+            talk_messages = self.__messages.get_talk_only(include_system_generated_messages=True)
+            new_messages = talk_messages[self.__db_saved_msg_count:]
+            if not new_messages:
+                return
+
+            world_id = self.__context.world_id
+            npcs = [c for c in self.__context.npcs_in_conversation.get_all_characters() if not c.is_player_character]
+            if not npcs:
+                return
+
+            for msg in new_messages:
+                if isinstance(msg, UserMessage):
+                    role = "user"
+                    content = msg.text
+                    is_sys = msg.is_system_generated_message
+                elif isinstance(msg, AssistantMessage):
+                    role = "assistant"
+                    content = msg.get_formatted_content()
+                    is_sys = msg.is_system_generated_message
+                else:
+                    continue
+
+                if not content or not content.strip():
+                    continue
+
+                for npc in npcs:
+                    base_name = utils.remove_trailing_number(npc.name)
+                    self.__conversation_db.save_message(
+                        self.__conversation_id, world_id, base_name, npc.ref_id,
+                        role, content, is_system_generated=is_sys
+                    )
+
+            self.__db_saved_msg_count = len(talk_messages)
+        except Exception as e:
+            logger.warning(f"Failed to persist messages to DB: {e}")
+
     @utils.time_it
     def add_or_update_character(self, new_character: list[Character]):
         """Adds or updates a character in the conversation.
@@ -162,6 +212,7 @@ class Conversation:
         if greeting:
             greeting = self.update_game_events(greeting)
             self.__messages.add_message(greeting)
+            self.__persist_new_messages()
             # If waiting for game context (two-way communication), delay LLM call
             if self.__waiting_for_game_context:
                 logger.info("Delaying LLM call - waiting for game context from Papyrus/simulator")
@@ -246,6 +297,7 @@ class Conversation:
             self.last_sentence_start_time = time.time()
             return comm_consts.KEY_REPLYTYPE_NPCTALK, next_sentence
         else:
+            self.__persist_new_messages()  # NPC response complete — persist to DB
             # Check if end conversation was requested via tool call
             if self.__output_manager.end_conversation_requested:
                 self.__output_manager.clear_end_conversation_requested()
@@ -260,6 +312,7 @@ class Conversation:
                 new_user_message = self.__conversation_type.get_user_message(self.__context, self.__messages)
                 if new_user_message:
                     self.__messages.add_message(new_user_message)
+                    self.__persist_new_messages()  # Radiant auto-message — persist to DB
                     self.__start_generating_npc_sentences()
                     return comm_consts.KEY_REPLYTYPE_NPCTALK, None
                 else:
@@ -357,10 +410,11 @@ class Conversation:
             new_message.is_multi_npc_message = self.__context.npcs_in_conversation.contains_multiple_npcs()
             new_message = self.update_game_events(new_message)
             self.__messages.add_message(new_message)
+            self.__persist_new_messages()  # Player input — persist to DB
             player_voiceline = self.__get_player_voiceline(player_character, player_text)
             text = new_message.text
             logger.log(23, f"Text passed to NPC: {text}")
-            
+
             llm_debug.log_player_transcript(player_text, self.__stt.prompt if self.__stt else None)
 
         ejected_npc = self.__does_dismiss_npc_from_conversation(text)
@@ -705,6 +759,9 @@ class Conversation:
         self.__has_already_ended = True
         self.__stop_generation()
         self.__sentences.clear()
+        self.__persist_new_messages()  # Final persist before ending
+        if self.__conversation_db and self.__conversation_id:
+            self.__conversation_db.end_conversation(self.__conversation_id)
         if async_save:
             Thread(target=self.__save_conversation, args=(False, end_timestamp), daemon=True).start()
         else:
