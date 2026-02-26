@@ -629,27 +629,34 @@ class Conversation:
         if not events:
             return []
 
-        # Keywords for events to filter out (minor/irrelevant events)
-        minor_event_keywords = [
+        # Events to always discard (substring match, case-insensitive)
+        always_discard = [
             'picked up', 'dropped', 'equipped', 'unequipped',
             'overencumbered', 'irradiated', 'radiation exposure',
             'sneaking', 'interacting with',
             'stood up from', 'rested on',
+            'in power armor', 'searching for',
+            'is crippled',
         ]
 
-        # Keywords for important items/events to keep even if they match minor keywords
-        important_keywords = [
-            'weapon', 'armor', 'quest', 'key', 'holotape', 'note',
-            'attacking', 'attacked', 'enemy', 'combat', 'died', 'killed',
-            'entered', 'left', 'arrived',
+        # Events to always keep (substring match) — overrides always_discard
+        always_keep = [
+            'entered combat', 'has entered combat',
+            'no longer in combat',
+            'hit the player', 'hit piper',
+            'attacking', 'attacked',
+            'died', 'killed',
+            'quest',
         ]
 
         LOCATION_DEBOUNCE_SECS = 30.0
         now = time.time()
 
-        # Filter out minor events
+        # Filter events
         filtered_events = []
         for event in events:
+            if not event or not event.strip():
+                continue
             event_lower = event.lower()
 
             # Debounce location change events (cell boundary noise while walking)
@@ -657,16 +664,16 @@ class Conversation:
                 location_name = event_lower.replace('current location is now', '').strip().rstrip('.')
                 if (location_name == self.__last_location_name
                         or now - self.__last_location_event_time < LOCATION_DEBOUNCE_SECS):
-                    continue  # suppress duplicate or too-rapid location change
+                    continue
                 self.__last_location_event_time = now
                 self.__last_location_name = location_name
                 filtered_events.append(event)
                 continue
 
-            is_minor = any(keyword in event_lower for keyword in minor_event_keywords)
-            is_important = any(keyword in event_lower for keyword in important_keywords)
+            should_keep = any(kw in event_lower for kw in always_keep)
+            should_discard = any(kw in event_lower for kw in always_discard)
 
-            if not is_minor or is_important:
+            if should_keep or not should_discard:
                 filtered_events.append(event)
         
         # Smart merging: merge consecutive identical events, keep separated ones
