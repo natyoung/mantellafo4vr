@@ -410,7 +410,6 @@ class Conversation:
             new_message.is_multi_npc_message = self.__context.npcs_in_conversation.contains_multiple_npcs()
             new_message = self.update_game_events(new_message)
             self.__messages.add_message(new_message)
-            self.__persist_new_messages()  # Player input — persist to DB
             player_voiceline = self.__get_player_voiceline(player_character, player_text)
             text = new_message.text
             logger.log(23, f"Text passed to NPC: {text}")
@@ -425,6 +424,7 @@ class Conversation:
             self.initiate_end_sequence()
         else:
             self.__start_generating_npc_sentences()
+        self.__persist_new_messages()  # Persist after flags are set (goodbye, summary recall, etc.)
 
         return player_text, events_need_updating, player_voiceline
 
@@ -615,7 +615,9 @@ class Conversation:
         
         # Keywords for events to filter out (minor/irrelevant events)
         minor_event_keywords = [
-            'picked up', 'dropped', 'equipped', 'unequipped'
+            'picked up', 'dropped', 'equipped', 'unequipped',
+            'overencumbered', 'irradiated', 'radiation exposure',
+            'sneaking',
         ]
         
         # Keywords for important items/events to keep even if they match minor keywords
@@ -764,6 +766,9 @@ class Conversation:
         last_msg = self.__messages.get_last_user_message()
         if last_msg:
             last_msg.is_system_generated_message = True
+        # Also update the already-persisted DB record
+        if self.__conversation_db and self.__conversation_id:
+            self.__conversation_db.mark_last_user_message_system_generated(self.__conversation_id)
 
         npc = self.__context.npcs_in_conversation.last_added_character
         if not npc or npc.is_player_character:
@@ -787,20 +792,19 @@ class Conversation:
         summaries_text = "\n".join(s["content"] for s in summaries_list)
         prompt_name = npc.prompt_name if npc.prompt_name else npc.name
         system_prompt = (
-            f"You are {prompt_name}. The player asked you to recall past interactions. "
-            f"Summarize the following in first person (as {prompt_name}), "
-            f"in 2-3 short sentences. Be concise - this will be spoken aloud."
+            f"You are {prompt_name} recalling memories from your personal diary. "
+            f"Stay fully in character as {prompt_name} — use their voice, personality, and mannerisms. "
+            f"Reminisce naturally about the key moments below in 2-3 short sentences. "
+            f"Speak casually like you're sharing memories with a friend, not reading a report. "
+            f"This will be spoken aloud — no lists, no narration, no stage directions."
         )
 
         recall_thread = message_thread(self.__context.config, system_prompt)
         recall_thread.add_message(UserMessage(self.__context.config, summaries_text))
 
-        # Use function client (cheaper model) if available, else main client
-        recall_text = None
-        if hasattr(self.__llm_client, 'function_client') and self.__llm_client.function_client:
-            recall_text = self.__llm_client.function_client.request_call(recall_thread)
-        if not recall_text:
-            recall_text = self.__llm_client.request_call(recall_thread)
+        # Use configured model for recall, or fall back to main conversation model
+        recall_model = self.__context.config.summary_recall_model or None
+        recall_text = self.__llm_client.request_call(recall_thread, model_override=recall_model)
         if not recall_text:
             recall_text = "I know we've talked before, but I can't quite remember the details."
 

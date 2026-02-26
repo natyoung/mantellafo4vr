@@ -280,6 +280,7 @@ LLM parameter list must follow the Python dictionary format: https://www.w3schoo
             self.player_character_description: str = self.__definitions.get_string_value("player_character_description")
             self.voice_player_input: bool = self.__definitions.get_bool_value("voice_player_input")
             self.player_voice_model: str = self.__definitions.get_string_value("player_voice_model")
+            self.summary_recall_model: str = self.__definitions.get_string_value("summary_recall_model")
 
             #HTTP
             self.port = self.__definitions.get_int_value("port")

@@ -123,3 +123,10 @@ class OtherDefinitions:
         description = """Whether to save audio data to an NPC's voice folder instead of MantellaVoice00.
                         Enable this value if voicelines are not being played in-game."""
         return ConfigValueBool("save_audio_data_to_character_folder", "Save Game Audio to Character Folder", description, False, tags=[ConfigValueTag.advanced])
+
+    @staticmethod
+    def get_summary_recall_model_config_value() -> ConfigValue:
+        description = """The LLM model to use for summary recall (when the player asks an NPC to recap past conversations).
+                        Leave empty to use the main conversation model.
+                        Example: anthropic/claude-opus-4.6"""
+        return ConfigValueString("summary_recall_model", "Summary Recall Model", description, "", tags=[ConfigValueTag.advanced])

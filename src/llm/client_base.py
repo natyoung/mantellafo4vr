@@ -238,16 +238,23 @@ class ClientBase(AIClient):
 
 
     @utils.time_it
-    def request_call(self, messages: Message | message_thread) -> str | None:
+    def request_call(self, messages: Message | message_thread, model_override: str | None = None) -> str | None:
         """Makes a request to the LLM and returns just the message content
-        
+
         Args:
             messages: The messages to send to the LLM
-            
+            model_override: Optional model name to use instead of the default
+
         Returns:
             The LLM response message content or None if the request failed
         """
+        saved_model = None
+        if model_override:
+            saved_model = self._model_name
+            self._model_name = model_override
         chat_completion: ChatCompletion = self._request_call_full(messages)
+        if saved_model:
+            self._model_name = saved_model
         
         if (
             not chat_completion or 
