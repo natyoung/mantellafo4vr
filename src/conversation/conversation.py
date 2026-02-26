@@ -92,6 +92,11 @@ class Conversation:
         self.__dynamic_vocab: str = ""  # LLM-generated vocabulary for Whisper
         self.__waiting_for_game_context: bool = False  # Delay LLM until game context arrives (for two-way communication)
 
+        # Location event debounce: suppress rapid-fire "Current location is now X"
+        # events from cell boundary crossings while walking
+        self.__last_location_event_time: float = 0.0
+        self.__last_location_name: str = ""
+
         # Crash-safe conversation DB persistence
         self.__conversation_db = getattr(game, 'conversation_db', None) if game else None
         self.__conversation_id: str | None = None
@@ -623,7 +628,7 @@ class Conversation:
         """
         if not events:
             return []
-        
+
         # Keywords for events to filter out (minor/irrelevant events)
         minor_event_keywords = [
             'picked up', 'dropped', 'equipped', 'unequipped',
@@ -631,21 +636,36 @@ class Conversation:
             'sneaking', 'interacting with',
             'stood up from', 'rested on',
         ]
-        
+
         # Keywords for important items/events to keep even if they match minor keywords
         important_keywords = [
             'weapon', 'armor', 'quest', 'key', 'holotape', 'note',
             'attacking', 'attacked', 'enemy', 'combat', 'died', 'killed',
-            'entered', 'left', 'arrived', 'location'
+            'entered', 'left', 'arrived',
         ]
-        
+
+        LOCATION_DEBOUNCE_SECS = 30.0
+        now = time.time()
+
         # Filter out minor events
         filtered_events = []
         for event in events:
             event_lower = event.lower()
+
+            # Debounce location change events (cell boundary noise while walking)
+            if event_lower.startswith('current location is now'):
+                location_name = event_lower.replace('current location is now', '').strip().rstrip('.')
+                if (location_name == self.__last_location_name
+                        or now - self.__last_location_event_time < LOCATION_DEBOUNCE_SECS):
+                    continue  # suppress duplicate or too-rapid location change
+                self.__last_location_event_time = now
+                self.__last_location_name = location_name
+                filtered_events.append(event)
+                continue
+
             is_minor = any(keyword in event_lower for keyword in minor_event_keywords)
             is_important = any(keyword in event_lower for keyword in important_keywords)
-            
+
             if not is_minor or is_important:
                 filtered_events.append(event)
         
