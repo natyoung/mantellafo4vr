@@ -733,7 +733,11 @@ class Conversation:
         """Stops the current generation of sentences if there is one
         """
         self.__output_manager.stop_generation()
+        deadline = time.time() + 20
         while self.__generation_thread and self.__generation_thread.is_alive():
+            if time.time() > deadline:
+                logger.warning("__stop_generation: generation thread still alive after 20s, giving up waiting")
+                break
             time.sleep(0.1)
         self.__generation_thread = None
 
