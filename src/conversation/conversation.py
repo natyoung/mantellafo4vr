@@ -148,6 +148,7 @@ class Conversation:
             if not npcs:
                 return
 
+            is_multi_npc = len(npcs) > 1
             for msg in new_messages:
                 if isinstance(msg, UserMessage):
                     role = "user"
@@ -163,12 +164,22 @@ class Conversation:
                 if not content or not content.strip():
                     continue
 
-                for npc in npcs:
+                if is_multi_npc and role == "assistant":
+                    # Multi-NPC assistant messages contain all speakers' lines with
+                    # "Name:" prefixes. Save once under the first NPC to avoid duplication.
+                    npc = npcs[0]
                     base_name = utils.remove_trailing_number(npc.name)
                     self.__conversation_db.save_message(
                         self.__conversation_id, world_id, base_name, npc.ref_id,
                         role, content, is_system_generated=is_sys
                     )
+                else:
+                    for npc in npcs:
+                        base_name = utils.remove_trailing_number(npc.name)
+                        self.__conversation_db.save_message(
+                            self.__conversation_id, world_id, base_name, npc.ref_id,
+                            role, content, is_system_generated=is_sys
+                        )
 
             self.__db_saved_msg_count = len(talk_messages)
         except Exception as e:
@@ -617,7 +628,8 @@ class Conversation:
         minor_event_keywords = [
             'picked up', 'dropped', 'equipped', 'unequipped',
             'overencumbered', 'irradiated', 'radiation exposure',
-            'sneaking',
+            'sneaking', 'interacting with',
+            'stood up from', 'rested on',
         ]
         
         # Keywords for important items/events to keep even if they match minor keywords
