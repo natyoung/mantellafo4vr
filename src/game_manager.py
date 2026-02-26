@@ -243,6 +243,16 @@ class GameStateManager:
         cleaned_player_text = utils.clean_text(updated_player_text)
         npcs_in_conversation = self.__talk.context.npcs_in_conversation
         if not npcs_in_conversation.contains_multiple_npcs(): # actions are only enabled in 1-1 conversations
+            # Summary recall: player asks NPC to recap past conversations
+            if any(kw in cleaned_player_text for kw in ('summary', 'recap')):
+                recall_sentence = self.__talk.handle_summary_recall()
+                if recall_sentence:
+                    topicInfoID = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE, 1))
+                    topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
+                    self.__game.prepare_sentence_for_game(recall_sentence, self.__talk.context, self.__config, topicInfoID, self.__first_line)
+                    self.__first_line = False
+                    return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(recall_sentence, topicInfoID)}
+
             for action in self.__config.actions:
                 # if the player response is just the name of an action, force the action to trigger
                 if action.keyword.lower() == cleaned_player_text.lower().replace(' ','') and npcs_in_conversation.last_added_character:

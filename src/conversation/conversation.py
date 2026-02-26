@@ -749,6 +749,67 @@ class Conversation:
         return None
 
     @utils.time_it
+    def handle_summary_recall(self) -> Sentence | None:
+        """Generate a throwaway first-person summary for the NPC to speak aloud.
+
+        Stops current LLM generation, marks the triggering message as system-generated
+        (excluded from summaries), retrieves past summaries from DB, and uses LLM to
+        create a short first-person recap. The response is NOT added to the message thread.
+        """
+        self.__stop_generation()
+        self.__sentences.clear()
+
+        # Mark the triggering "summary"/"recap" message as system-generated
+        # so it won't appear in conversation summaries
+        last_msg = self.__messages.get_last_user_message()
+        if last_msg:
+            last_msg.is_system_generated_message = True
+
+        npc = self.__context.npcs_in_conversation.last_added_character
+        if not npc or npc.is_player_character:
+            return None
+
+        # Retrieve summaries from DB
+        db = getattr(self.__game, 'conversation_db', None) if self.__game else None
+        if not db:
+            return None
+
+        base_name = utils.remove_trailing_number(npc.name)
+        summaries_list = db.get_all_summaries(self.__context.world_id, base_name, npc.ref_id)
+
+        if not summaries_list:
+            no_history = "I don't think we've spoken before."
+            return self.__output_manager.generate_sentence(
+                SentenceContent(npc, no_history, SentenceTypeEnum.SPEECH, True)
+            )
+
+        # Combine summaries and call LLM for a short first-person recap
+        summaries_text = "\n".join(s["content"] for s in summaries_list)
+        prompt_name = npc.prompt_name if npc.prompt_name else npc.name
+        system_prompt = (
+            f"You are {prompt_name}. The player asked you to recall past interactions. "
+            f"Summarize the following in first person (as {prompt_name}), "
+            f"in 2-3 short sentences. Be concise - this will be spoken aloud."
+        )
+
+        recall_thread = message_thread(self.__context.config, system_prompt)
+        recall_thread.add_message(UserMessage(self.__context.config, summaries_text))
+
+        # Use function client (cheaper model) if available, else main client
+        recall_text = None
+        if hasattr(self.__llm_client, 'function_client') and self.__llm_client.function_client:
+            recall_text = self.__llm_client.function_client.request_call(recall_thread)
+        if not recall_text:
+            recall_text = self.__llm_client.request_call(recall_thread)
+        if not recall_text:
+            recall_text = "I know we've talked before, but I can't quite remember the details."
+
+        logger.log(23, f"Summary recall for {prompt_name}: {recall_text}")
+        return self.__output_manager.generate_sentence(
+            SentenceContent(npc, recall_text, SentenceTypeEnum.SPEECH, True)
+        )
+
+    @utils.time_it
     def end(self, end_timestamp: float | None = None, async_save: bool = False):
         """Ends a conversation
 
