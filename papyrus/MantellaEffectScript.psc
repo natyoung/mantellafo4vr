@@ -12,6 +12,7 @@ Message property MantellaActorIsInConvoMessage auto
 Keyword Property AmmoKeyword Auto Const
 Spell Property MantellaIsUsingItem auto ;Used to track if a NPC is using attempting to use spell that is used a signal to signal that the NPC is using an item
 Faction Property MantellaFunctionSourceFaction Auto
+string _lastNpcEquipEvent = ""
 
 ;##############################################################
 ;#            Magic Effect Start and finish Event managers    #
@@ -165,20 +166,17 @@ Event OnItemEquipped(Form akBaseObject, ObjectReference akReference)
     if repository.targetTrackingOnObjectEquipped && akBaseObject!=MantellaIsUsingItem && conversation.IsActorInConversation(actorUsing)
         String selfName = actorUsing.getdisplayname()
         string itemEquipped = akBaseObject.getname()
-        ;Debug.MessageBox(selfName+" equipped " + itemEquipped)
-        conversation.AddIngameEvent(selfName+" equipped " + itemEquipped) 
+        ; Deduplicate rapid-fire equip events (mod automation)
+        string msg = selfName+" equipped " + itemEquipped
+        if msg != _lastNpcEquipEvent
+            _lastNpcEquipEvent = msg
+            conversation.AddIngameEvent(msg)
+        endif
     endif
 endEvent
 
 Event OnItemUnequipped(Form akBaseObject, ObjectReference akReference)
-    Actor actorUsing =  self.GetTargetActor()
-
-    if repository.targetTrackingOnObjectUnequipped && akBaseObject!=MantellaIsUsingItem && conversation.IsActorInConversation(actorUsing)
-        String selfName = actorUsing.getdisplayname()
-        string itemUnequipped = akBaseObject.getname()
-        ;Debug.MessageBox(selfName+" unequipped " + itemUnequipped)
-        conversation.AddIngameEvent(selfName+" unequipped " + itemUnequipped) 
-    endif
+    ; Disabled: unequip events are almost always noise (mod gear swaps, etc.)
 endEvent
 
 Event OnSit(ObjectReference akFurniture)

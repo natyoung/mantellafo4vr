@@ -261,6 +261,12 @@ Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource
         string aggressor = akAggressor.getdisplayname()
         string hitSource = akSource.getname()
 
+        ; Filter out mod spells and empty aggressors (SleepIntimate, AAF, etc.)
+        if aggressor == "" || hitSource == "intimate AAC"
+            RegisterForHitEvent(PlayerRef)
+            return
+        endif
+
         ; avoid writing events too often (continuous spells record very frequently)
         ; if the actor and weapon hasn't changed, only record the event every 5 hits
         if ((hitSource != lastHitSource) && (aggressor != lastAggressor)) || (timesHitSameAggressorSource > 5)
@@ -269,7 +275,6 @@ Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource
             timesHitSameAggressorSource = 0
 
             if (hitSource == "None") || (hitSource == "")
-                ;Debug.MessageBox(aggressor + " punched the player.")
                 conversation.AddIngameEvent(aggressor + " punched the player.")
             else
                 if aggressor == PlayerRef.getdisplayname()
@@ -286,7 +291,6 @@ Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource
             timesHitSameAggressorSource += 1
         endIf
     endif
-    ;RegisterForHitEvent necessary for Onhit to work properly
     RegisterForHitEvent(PlayerRef)
 EndEvent
 
@@ -306,28 +310,29 @@ Event OnLocationChange(Location akOldLoc, Location akNewLoc)
     endif
 endEvent
 
+string _lastPlayerEquipEvent = ""
+
 Event OnItemEquipped(Form akBaseObject, ObjectReference akReference)
     if repository.playerTrackingOnObjectEquipped
         string itemEquipped = akBaseObject.getname()
+        ; Filter junk: Mantella internals, jewelry, Pip-Boy, misc mod items
+        if itemEquipped == "Mantella" || itemEquipped == "Pip-Boy" || itemEquipped == "Wedding Ring"
+            return
+        endif
         string itemenchant = akBaseObject.GetEnchantment().getname()
-        if itemenchant != "" ;filtering out enchantments to avoid spamming the LLM with confusing feedback
-            ;Debug.MessageBox("The player equipped " + itemEquipped)
-            if itemEquipped != "Mantella"
-                conversation.AddIngameEvent("The player equipped " + itemEquipped + ".")
+        if itemenchant != ""
+            string msg = "The player equipped " + itemEquipped + "."
+            ; Deduplicate rapid-fire equip events (mod automation)
+            if msg != _lastPlayerEquipEvent
+                _lastPlayerEquipEvent = msg
+                conversation.AddIngameEvent(msg)
             endif
         endif
     endif
 endEvent
 
-
 Event OnItemUnequipped (Form akBaseObject, ObjectReference akReference)
-    if repository.playerTrackingOnObjectUnequipped
-        string itemUnequipped = akBaseObject.getname()
-        ;Debug.MessageBox("The player unequipped " + itemUnequipped)
-        if itemUnequipped != "Mantella Enchantment" && itemUnequipped != "Mantella"
-            conversation.AddIngameEvent("The player unequipped " + itemUnequipped + ".")
-        Endif
-    endif
+    ; Disabled: unequip events are almost always noise (mod gear swaps, etc.)
 endEvent
 
 Event OnSit(ObjectReference akFurniture)
