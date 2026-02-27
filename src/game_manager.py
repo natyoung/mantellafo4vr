@@ -343,6 +343,35 @@ class GameStateManager:
     def __abbreviate_text(self, text_to_abbreviate: str) -> str:
         return self.__game.modify_sentence_text_for_game(text_to_abbreviate)
 
+    @staticmethod
+    def _disambiguate_game_names(actors: list[Character]):
+        """Add Papyrus-style numeric suffixes to duplicate game_names.
+
+        Papyrus GetActorName() appends " N" (where N = occurrence count) to the
+        second+ actor sharing the same GetDisplayName(). The first actor keeps
+        the bare name. Player characters are excluded from counting (matching
+        the Papyrus `if actorsToAdd[i] != playerRef` guard).
+
+        Must be idempotent: strips any existing suffix before re-assigning.
+        """
+        import re
+        # Strip any existing disambiguation suffix so re-runs are idempotent
+        for actor in actors:
+            if isinstance(actor.game_name, str):
+                actor.game_name = re.sub(r' \d+$', '', actor.game_name)
+
+        # Count occurrences among non-player actors
+        seen: dict[str, int] = {}
+        for actor in actors:
+            if actor.is_player_character:
+                continue
+            name = actor.game_name
+            if not isinstance(name, str):
+                continue
+            seen[name] = seen.get(name, 0) + 1
+            if seen[name] > 1:
+                actor.game_name = f"{name} {seen[name]}"
+
     ##### utils #######
 
     @utils.time_it
@@ -352,9 +381,10 @@ class GameStateManager:
                 actors_in_json: list[Character] = []
                 for actorJson in json[comm_consts.KEY_ACTORS]:
                     if comm_consts.KEY_ACTOR_BASEID in actorJson:
-                        actor: Character | None = self.load_character(actorJson)                
+                        actor: Character | None = self.load_character(actorJson)
                         if actor:
                             actors_in_json.append(actor)
+                self._disambiguate_game_names(actors_in_json)
                 self.__talk.add_or_update_character(actors_in_json)
             
             location = None
