@@ -121,15 +121,15 @@ class GameStateManager:
             comm_consts.KEY_STARTCONVERSATION_USENARRATOR: self.__conv_has_narrator
         }
         
-        # For Fallout 4: Look up quest FormIDs for the NPC so Papyrus can check their status
-        # NOTE: LLM delay disabled — Papyrus quest stage reporting not yet implemented.
-        # When Papyrus side is ready, re-enable the delay by uncommenting the line below.
+        # For Fallout 4: Look up quest FormIDs for the NPC so Papyrus can check their status.
+        # Papyrus checks the stages and sends back quest data in the first continue_conversation.
+        # The LLM waits for that context before generating the first response.
         if self.__config.game.base_game == GameEnum.FALLOUT4:
             quest_ids = self._get_quest_ids_for_conversation(input_json)
             if quest_ids:
                 logger.info(f"Quest FormIDs for conversation: {quest_ids}")
                 response[comm_consts.KEY_QUEST_IDS_TO_CHECK] = quest_ids
-                # self.__talk.waiting_for_game_context = True
+                self.__talk.waiting_for_game_context = True
         
         self.__talk.start_conversation()
         
