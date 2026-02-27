@@ -355,6 +355,8 @@ class Conversation:
             return '', False, None # If there is no player in the conversation, exit here
         
         events_need_updating: bool = False
+        is_silence_timeout: bool = False
+        player_voiceline = None
 
         with self.__generation_start_lock: #This lock makes sure no new generation by the LLM is started while we clear this
             # For mic input with empty text (entering STT mode), don't kill NPC generation yet.
@@ -398,8 +400,9 @@ class Conversation:
                     if player_text is None:
                         self.__silence_auto_response_count += 1
                         logger.log(23, f"Player silent for {self.__silence_auto_response_timeout} seconds. Auto-response count: {self.__silence_auto_response_count}/{self.__silence_auto_response_max_count}")
-                        player_text = self.__silence_auto_response_message
-                        
+                        is_silence_timeout = True
+                        player_text = ""  # No actual player input
+
                         # If max count reached, log that auto-response is now disabled
                         if self.__silence_auto_response_count >= self.__silence_auto_response_max_count:
                             logger.log(23, f"Max consecutive silence count ({self.__silence_auto_response_max_count}) reached. Auto-response disabled until player speaks")
@@ -407,7 +410,7 @@ class Conversation:
                     elif player_text:
                         # Player spoke -> reset the silence counter
                         self.__silence_auto_response_count = 0
-                    
+
                 # Stop listening once input detected to give NPC a chance to speak
                 self.__stt.stop_listening()
 
@@ -421,21 +424,32 @@ class Conversation:
                     events_need_updating = True
                     logger.debug('Updating game events...')
                     return player_text, events_need_updating, None
-            
-            new_message: UserMessage = UserMessage(self.__context.config, player_text, player_character.name, False)
-            new_message.is_multi_npc_message = self.__context.npcs_in_conversation.contains_multiple_npcs()
-            new_message = self.update_game_events(new_message)
-            self.__messages.add_message(new_message)
-            player_voiceline = self.__get_player_voiceline(player_character, player_text)
-            text = new_message.text
-            logger.log(23, f"Text passed to NPC: {text}")
 
-            llm_debug.log_player_transcript(player_text, self.__stt.prompt if self.__stt else None)
+            if is_silence_timeout:
+                # Player was silent — add a subtle nudge so the NPC continues naturally.
+                # Without a user message the LLM returns empty (nothing new to respond to).
+                silence_msg = self.__silence_auto_response_message
+                logger.log(23, f"Silence timeout: sending '{silence_msg}' to prompt NPC continuation")
+                new_message = UserMessage(self.__context.config, silence_msg, player_character.name, True)
+                new_message.is_multi_npc_message = self.__context.npcs_in_conversation.contains_multiple_npcs()
+                new_message = self.update_game_events(new_message)
+                self.__messages.add_message(new_message)
+                text = silence_msg
+            else:
+                new_message: UserMessage = UserMessage(self.__context.config, player_text, player_character.name, False)
+                new_message.is_multi_npc_message = self.__context.npcs_in_conversation.contains_multiple_npcs()
+                new_message = self.update_game_events(new_message)
+                self.__messages.add_message(new_message)
+                player_voiceline = self.__get_player_voiceline(player_character, player_text)
+                text = new_message.text
+                logger.log(23, f"Text passed to NPC: {text}")
 
-        ejected_npc = self.__does_dismiss_npc_from_conversation(text)
+                llm_debug.log_player_transcript(player_text, self.__stt.prompt if self.__stt else None)
+
+        ejected_npc = self.__does_dismiss_npc_from_conversation(text) if not is_silence_timeout else None
         if ejected_npc:
             self.__prepare_eject_npc_from_conversation(ejected_npc)
-        elif self.__has_conversation_ended(text):
+        elif not is_silence_timeout and self.__has_conversation_ended(text):
             new_message.is_system_generated_message = True # Flag message containing goodbye as a system message to exclude from summary
             self.initiate_end_sequence()
         else:

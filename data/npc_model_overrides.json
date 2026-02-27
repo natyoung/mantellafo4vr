@@ -2,4 +2,5 @@
   "_comment": "Map NPC name -> model ID. NPCs not listed here use the global model from config.ini",
   "_example_Nick Valentine": "anthropic/claude-sonnet-4"
   
+  
 }

@@ -129,7 +129,8 @@ class GameStateManager:
             if quest_ids:
                 logger.info(f"Quest FormIDs for conversation: {quest_ids}")
                 response[comm_consts.KEY_QUEST_IDS_TO_CHECK] = quest_ids
-                self.__talk.waiting_for_game_context = True
+                # TODO: Enable once Papyrus quest stage reporting is confirmed working
+                # self.__talk.waiting_for_game_context = True
         
         self.__talk.start_conversation()
         
