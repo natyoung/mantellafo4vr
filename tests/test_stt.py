@@ -1,5 +1,7 @@
 """Tests for STT error handling in whisper_transcribe."""
 import json
+import threading
+import time
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
@@ -105,3 +107,36 @@ class TestWhisperTranscribeCustomServerErrorHandling:
         audio = np.zeros(16000, dtype=np.float32)
         result = self._call(fake, audio)
         assert result == ""
+
+
+class TestStopListeningTimeout:
+    """Bug: _processing_thread.join() has no timeout — hangs if thread is stuck."""
+
+    def test_stop_listening_does_not_hang_on_stuck_thread(self):
+        """stop_listening() must return within a few seconds even if thread won't die."""
+        from src.stt import Transcriber
+        import queue as queue_mod
+
+        fake = MagicMock()
+        fake._running = True
+        fake._speech_detected = True
+        fake._stream = None
+        fake._audio_queue = queue_mod.Queue()
+        fake.loglevel = 23
+
+        # Create a thread that blocks for a long time
+        hang_event = threading.Event()
+        def hang():
+            hang_event.wait(timeout=30)  # would block 30s without the fix
+        stuck_thread = threading.Thread(target=hang, daemon=True)
+        stuck_thread.start()
+        fake._processing_thread = stuck_thread
+
+        start = time.time()
+        Transcriber.stop_listening(fake)
+        elapsed = time.time() - start
+
+        # Must return quickly (within 5s), not hang for 30s
+        assert elapsed < 5.0, f"stop_listening hung for {elapsed:.1f}s (thread join has no timeout)"
+        hang_event.set()  # clean up the thread
+        stuck_thread.join(timeout=2)
