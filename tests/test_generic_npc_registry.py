@@ -1,3 +1,4 @@
+import threading
 import pytest
 from pathlib import Path
 from src.generic_npc_registry import GenericNPCRegistry
@@ -101,6 +102,38 @@ class TestGenericNPCRegistry:
         backup = tmp_path / "registry.json.corrupt"
         assert backup.exists(), "Corrupted file should be backed up"
         assert backup.read_text(encoding="utf-8") == bad_content
+
+    def test_concurrent_register_preserves_all_entries(self, tmp_path: Path):
+        """Concurrent register() calls must not lose entries due to race conditions."""
+        path = str(tmp_path / "registry.json")
+        registry = GenericNPCRegistry(path)
+        voice_pool = {"male": ["rand_m01", "rand_m02", "rand_m03"], "female": ["rand_f01", "rand_f02", "rand_f03"]}
+        n_threads = 10
+        barrier = threading.Barrier(n_threads)
+        errors = []
+
+        def register_one(i):
+            try:
+                barrier.wait(timeout=5)
+                registry.register(f"RACE{i:04d}", gender=i % 2, race="Human",
+                                  original_name="Settler", voice_pool=voice_pool)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=register_one, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Threads raised errors: {errors}"
+        # All entries must survive — no overwrites
+        for i in range(n_threads):
+            assert registry.lookup(f"RACE{i:04d}") is not None, f"Entry RACE{i:04d} lost to race condition"
+        # Verify persistence: reload from disk
+        registry2 = GenericNPCRegistry(path)
+        for i in range(n_threads):
+            assert registry2.lookup(f"RACE{i:04d}") is not None, f"Entry RACE{i:04d} lost on disk"
 
     def test_non_generic_unknown_keeps_name(self, tmp_path: Path):
         """A non-generic NPC name (e.g. 'Custom Mod NPC') should NOT be renamed by the registry."""

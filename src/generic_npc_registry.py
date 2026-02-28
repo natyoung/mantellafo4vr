@@ -4,6 +4,7 @@ import logging
 import os
 import hashlib
 import shutil
+import threading
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
@@ -169,6 +170,7 @@ class GenericNPCRegistry:
     def __init__(self, registry_path: str):
         self._path = registry_path
         self._entries: dict[str, GenericNPCIdentity] = {}
+        self._lock = threading.Lock()
         self._load()
 
     def _load(self):
@@ -203,11 +205,17 @@ class GenericNPCRegistry:
             original_game_name=original_name,
             created_at=datetime.now().isoformat(timespec="seconds"),
         )
-        self._entries[ref_id] = identity
-        self.save()
+        with self._lock:
+            self._entries[ref_id] = identity
+            self._save_locked()
         return identity
 
     def save(self):
+        with self._lock:
+            self._save_locked()
+
+    def _save_locked(self):
+        """Write entries to disk. Caller must hold self._lock."""
         tmp = self._path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump({k: asdict(v) for k, v in self._entries.items()}, f, indent=2)
