@@ -278,7 +278,8 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
                     response_data = client.audio.transcriptions.create(model=self.whisper_model, language=self.language, file=audio_file, prompt=prompt)
             except Exception as e:
                 utils.play_error_sound()
-                if e.code in [404, 'model_not_found']:
+                error_code = getattr(e, 'code', None)
+                if error_code in [404, 'model_not_found']:
                     if self.whisper_service == 'OpenAI':
                         logger.error(f"Selected Whisper model '{self.whisper_model}' does not exist in the OpenAI service. Try changing 'Speech-to-Text'->'Model Size' to 'whisper-1' in the Mantella UI")
                     elif self.whisper_service == 'Groq':
@@ -288,6 +289,8 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
                 else:
                     logger.error(f'STT error: {e}')
                 input("Press Enter to exit.")
+                client.close()
+                return ''
             client.close()
             if utils.clean_text(response_data.text) in self.__ignore_list: # common phrases hallucinated by Whisper
                 return ''
