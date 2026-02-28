@@ -1,5 +1,6 @@
 from typing import Any, Hashable
 import time
+import threading
 import regex
 from src.config.definitions.llm_definitions import NarrationHandlingEnum
 from src.config.definitions.game_definitions import GameEnum
@@ -53,6 +54,8 @@ class GameStateManager:
         self.__last_start_time: float = 0
         self.__last_start_actors: set[int] = set()
         self.__last_activity_time: float = 0
+        self._player_input_lock = threading.Lock()
+        self._player_input_in_progress = False
 
     ###### react to calls from the game #######
     @utils.time_it
@@ -175,9 +178,23 @@ class GameStateManager:
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
             replyType, sentence_to_play = current_talk.continue_conversation()
             if replyType == comm_consts.KEY_REQUESTTYPE_TTS:
-                # if player input is detected mid-response, immediately process the player input
-                reply = self.player_input({"mantella_context": {}, "mantella_player_input": "", "mantella_request_type": "mantella_player_input"})
-                self.__first_line = False # since the NPC is already speaking in-game, setting this to True would just cause two voicelines to play at once
+                # if player input is detected mid-response, immediately process the player input.
+                # Guard: only ONE thread should call player_input (STT blocks for 30-120s,
+                # and the game sends continue_conversation every ~1.5s — without this guard
+                # we'd get 8+ concurrent threads all stuck in stt.get_latest_transcription).
+                with self._player_input_lock:
+                    if self._player_input_in_progress:
+                        # Another thread is already handling player input.
+                        # Sleep briefly then re-check conversation state.
+                        time.sleep(0.5)
+                        continue
+                    self._player_input_in_progress = True
+                try:
+                    reply = self.player_input({"mantella_context": {}, "mantella_player_input": "", "mantella_request_type": "mantella_player_input"})
+                    self.__first_line = False # since the NPC is already speaking in-game, setting this to True would just cause two voicelines to play at once
+                finally:
+                    with self._player_input_lock:
+                        self._player_input_in_progress = False
                 continue # continue conversation with new player input (ie call self.__talk.continue_conversation() again)
             elif replyType == comm_consts.KEY_REPLYTYPE_NPCACTION:
                 # Action-only response (no voiceline)
@@ -229,28 +246,31 @@ class GameStateManager:
 
     @utils.time_it
     def player_input(self, input_json: dict[str, Any]) -> dict[str, Any]:
-        if(not self.__talk ):
+        # Capture as local to prevent NoneType crash if end_conversation sets
+        # self.__talk = None on another thread mid-execution.
+        talk = self.__talk
+        if not talk:
             return self.error_message("No running conversation.")
 
         self.__last_activity_time = time.time()
         self.__first_line = True
-        
+
         player_text: str = input_json.get(comm_consts.KEY_REQUESTTYPE_PLAYERINPUT, '')
         self.__update_context(input_json)
-        updated_player_text, update_events, player_spoken_sentence = self.__talk.process_player_input(player_text)
+        updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
         if update_events:
             return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REQUESTTYPE_TTS, comm_consts.KEY_TRANSCRIBE: updated_player_text}
 
         cleaned_player_text = utils.clean_text(updated_player_text)
-        npcs_in_conversation = self.__talk.context.npcs_in_conversation
+        npcs_in_conversation = talk.context.npcs_in_conversation
         if not npcs_in_conversation.contains_multiple_npcs(): # actions are only enabled in 1-1 conversations
             # Summary recall: player asks NPC to recap past conversations
             if any(kw in cleaned_player_text for kw in ('summary', 'recap')):
-                recall_sentence = self.__talk.handle_summary_recall()
+                recall_sentence = talk.handle_summary_recall()
                 if recall_sentence:
                     topicInfoID = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE, 1))
                     topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
-                    self.__game.prepare_sentence_for_game(recall_sentence, self.__talk.context, self.__config, topicInfoID, self.__first_line)
+                    self.__game.prepare_sentence_for_game(recall_sentence, talk.context, self.__config, topicInfoID, self.__first_line)
                     self.__first_line = False
                     return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(recall_sentence, topicInfoID)}
 
@@ -264,13 +284,13 @@ class GameStateManager:
                         self.__chat_manager.set_listen_requested(pause_seconds)
                         logger.log(23, f"Listen action triggered via keyword: Pause threshold increased to {pause_seconds} seconds for one turn")
                         break # Don't send to game
-                    
+
                     if action.identifier == 'mantella_npc_vision':
                         # Enable vision for the next LLM call
                         self.__client.enable_vision_for_next_call()
                         logger.log(23, "Vision action triggered via keyword: Vision enabled for next LLM call")
                         break # Don't send to game
-                    
+
                     return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCACTION,
                             comm_consts.KEY_REPLYTYPE_NPCACTION: {
                                 'mantella_actor_speaker': npcs_in_conversation.last_added_character.game_name,
@@ -282,7 +302,7 @@ class GameStateManager:
         if player_spoken_sentence:
             topicInfoID: int = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1))
             topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
-            self.__game.prepare_sentence_for_game(player_spoken_sentence, self.__talk.context, self.__config, topicInfoID, self.__first_line)
+            self.__game.prepare_sentence_for_game(player_spoken_sentence, talk.context, self.__config, topicInfoID, self.__first_line)
             self.__first_line = False
             return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(player_spoken_sentence, topicInfoID)}
         else:
