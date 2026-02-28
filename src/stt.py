@@ -301,11 +301,17 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
             response = requests.post(self.whisper_url, files=files, data=data)
             if response.status_code != 200:
                 logger.error(f'STT Error: {response.content}')
-            response_data = json.loads(response.text)
+                return ''
+            try:
+                response_data = json.loads(response.text)
+            except json.JSONDecodeError:
+                logger.error(f'STT returned invalid JSON: {response.text[:200]}')
+                return ''
             if 'text' in response_data:
                 if utils.clean_text(response_data['text']) in self.__ignore_list: # common phrases hallucinated by Whisper
                     return ''
                 return response_data['text'].strip()
+            return ''
             
 
     @utils.time_it

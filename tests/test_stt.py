@@ -1,4 +1,5 @@
 """Tests for STT error handling in whisper_transcribe."""
+import json
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
@@ -62,3 +63,45 @@ class TestWhisperTranscribeOpenAIErrorHandling:
 
         assert result == ""
         mock_client.close.assert_called_once()
+
+
+class FakeTranscriberCustomServer(FakeTranscriber):
+    """Fake with custom server URL (non-openai branch)."""
+    def __init__(self):
+        super().__init__()
+        self.whisper_url = "http://localhost:9000/transcribe"  # no 'openai' → custom server branch
+
+
+class TestWhisperTranscribeCustomServerErrorHandling:
+    """Bug: non-200 response logged but execution continues to json.loads() which crashes."""
+
+    def _call(self, fake, audio):
+        from src.stt import Transcriber
+        return Transcriber.whisper_transcribe(fake, audio, prompt="")
+
+    @patch("src.stt.requests.post")
+    def test_non_200_returns_empty_instead_of_crashing(self, mock_post):
+        """A 500 error with HTML body must not crash on json.loads()."""
+        fake = FakeTranscriberCustomServer()
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.content = b"Internal Server Error"
+        mock_response.text = "<html>Internal Server Error</html>"
+        mock_post.return_value = mock_response
+
+        audio = np.zeros(16000, dtype=np.float32)
+        result = self._call(fake, audio)
+        assert result == ""
+
+    @patch("src.stt.requests.post")
+    def test_200_with_missing_text_key_returns_empty(self, mock_post):
+        """A 200 response with no 'text' key should return '' not None."""
+        fake = FakeTranscriberCustomServer()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = json.dumps({"error": "no speech detected"})
+        mock_post.return_value = mock_response
+
+        audio = np.zeros(16000, dtype=np.float32)
+        result = self._call(fake, audio)
+        assert result == ""
