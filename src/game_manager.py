@@ -95,6 +95,11 @@ class GameStateManager:
         self.__last_start_actors = actor_ids
         self.__last_activity_time = now
 
+        # Reset player_input guard — a previous conversation's STT thread may have
+        # hung (e.g. player died mid-speech), leaving the flag stuck True forever.
+        with self._player_input_lock:
+            self._player_input_in_progress = False
+
         if self.__talk: #This should only happen if game and server are out of sync due to some previous error -> close conversation and start a new one
             self.__talk.end(async_save=True)
             self.__talk = None
