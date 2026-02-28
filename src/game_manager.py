@@ -447,6 +447,9 @@ class GameStateManager:
     
     @utils.time_it
     def load_character(self, json: dict[str, Any]) -> Character | None:
+        # Capture as local to prevent NoneType crash if end_conversation
+        # sets self.__talk = None on another thread mid-execution.
+        talk = self.__talk
         try:
             base_id: str = utils.convert_to_skyrim_hex_format(str(json[comm_consts.KEY_ACTOR_BASEID]))
             ref_id: str = utils.convert_to_skyrim_hex_format(str(json[comm_consts.KEY_ACTOR_REFID]))
@@ -488,8 +491,8 @@ class GameStateManager:
             voice_language: str = ""
             prompt_name: str = None
             is_player_character: bool = bool(json[comm_consts.KEY_ACTOR_ISPLAYER])
-            if self.__talk and self.__talk.contains_character(ref_id):
-                already_loaded_character: Character | None = self.__talk.get_character(ref_id)
+            if talk and talk.contains_character(ref_id):
+                already_loaded_character: Character | None = talk.get_character(ref_id)
                 if already_loaded_character:
                     character_name = already_loaded_character.name
                     game_name = already_loaded_character.game_name
@@ -502,7 +505,7 @@ class GameStateManager:
                     voice_language = already_loaded_character.voice_language
                     is_generic_npc = already_loaded_character.is_generic_npc
                     prompt_name = already_loaded_character.prompt_name
-            elif self.__talk and not is_player_character :#If this is not the player and the character has not already been loaded
+            elif talk and not is_player_character :#If this is not the player and the character has not already been loaded
                 external_info: external_character_info = self.__game.load_external_character_info(base_id, character_name, race, gender, actor_voice_model, ref_id=ref_id)
 
                 # Inject per-NPC max_response_sentences into custom_values if set in override
@@ -522,7 +525,7 @@ class GameStateManager:
                 prompt_name = external_info.prompt_name
                 if is_generic_npc:
                     ingame_voice_model = external_info.ingame_voice_model
-            elif self.__talk and is_player_character and self.__config.voice_player_input:
+            elif talk and is_player_character and self.__config.voice_player_input:
                 if custom_values.__contains__(comm_consts.KEY_ACTOR_PC_VOICEMODEL):
                     tts_voice_model = self.__get_player_voice_model(str(custom_values[comm_consts.KEY_ACTOR_PC_VOICEMODEL]))
                 else:

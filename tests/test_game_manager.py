@@ -1,6 +1,7 @@
 from src.game_manager import GameStateManager
 import pytest
 import jsonschema
+from unittest.mock import MagicMock
 from src.http import models
 from src.http.communication_constants import communication_constants as comm_consts
 from src.conversation import conversation as conv_module
@@ -166,3 +167,73 @@ def test_sentence_to_json_with_empty_actions(default_game_manager: GameStateMana
     
     assert comm_consts.KEY_ACTOR_ACTIONS in result
     assert result[comm_consts.KEY_ACTOR_ACTIONS] == []
+
+
+def test_load_character_survives_talk_nulled_mid_execution():
+    """load_character() must not crash if self.__talk is nulled by another thread mid-call.
+
+    Simulates: Thread A is in load_character() checking talk.contains_character().
+    Between that check and later usage of talk, Thread B calls end_conversation()
+    which sets self.__talk = None. Without a local capture, this causes AttributeError.
+    """
+    from src.game_manager import GameStateManager
+
+    # Build a minimal GameStateManager with all-mock dependencies
+    gm = object.__new__(GameStateManager)
+    gm._GameStateManager__game = MagicMock()
+    gm._GameStateManager__config = MagicMock()
+    gm._GameStateManager__config.voice_player_input = False
+
+    # Set up a mock conversation
+    mock_talk = MagicMock()
+    mock_talk.contains_character.return_value = False  # NPC not already loaded
+
+    # Mock load_external_character_info to return valid data
+    mock_ext_info = MagicMock()
+    mock_ext_info.bio = "A test NPC."
+    mock_ext_info.wiki = ""
+    mock_ext_info.tts_voice_model = "MaleEvenToned"
+    mock_ext_info.csv_in_game_voice_model = "MaleEvenToned"
+    mock_ext_info.advanced_voice_model = ""
+    mock_ext_info.voice_accent = ""
+    mock_ext_info.voice_language = None
+    mock_ext_info.is_generic_npc = False
+    mock_ext_info.name = "TestNPC"
+    mock_ext_info.prompt_name = None
+    mock_ext_info.ingame_voice_model = "MaleEvenToned"
+    mock_ext_info.max_response_sentences = None
+    gm._GameStateManager__game.load_external_character_info = MagicMock(return_value=mock_ext_info)
+
+    # Wire: contains_character returns True (NPC already loaded), but between that check
+    # and the next line (self.__talk.get_character), __talk gets nulled.
+    def contains_then_null(ref_id):
+        gm._GameStateManager__talk = None  # concurrent end_conversation
+        return True  # triggers the get_character path
+
+    mock_talk.contains_character.side_effect = contains_then_null
+    mock_talk.get_character.return_value = None
+    gm._GameStateManager__talk = mock_talk
+
+    actor_json = {
+        comm_consts.KEY_ACTOR_BASEID: "100",
+        comm_consts.KEY_ACTOR_REFID: "200",
+        comm_consts.KEY_ACTOR_NAME: "TestNPC",
+        comm_consts.KEY_ACTOR_GENDER: 0,
+        comm_consts.KEY_ACTOR_RACE: "[Race <HumanRace (00013746)>]",
+        comm_consts.KEY_ACTOR_VOICETYPE: "[VTYP <MaleEvenToned (0002F7C3)>]",
+        comm_consts.KEY_ACTOR_ISINCOMBAT: False,
+        comm_consts.KEY_ACTOR_ISENEMY: False,
+        comm_consts.KEY_ACTOR_RELATIONSHIPRANK: 0,
+        comm_consts.KEY_ACTOR_ISPLAYER: False,
+    }
+
+    # Without the fix: `if self.__talk and self.__talk.contains_character(ref_id)`
+    # passes (mock_talk is truthy), contains_then_null nulls __talk and returns True,
+    # then `self.__talk.get_character(ref_id)` on line 492 calls None.get_character() → crash.
+    # The except Exception handler catches it and returns None, but that's still wrong:
+    # the character should be successfully created (just with defaults since get_character=None).
+    result = gm.load_character(actor_json)
+    assert isinstance(result, Character), (
+        f"Expected a Character instance (local capture prevents crash), got {result!r}. "
+        "load_character likely hit the except handler due to __talk being None."
+    )
