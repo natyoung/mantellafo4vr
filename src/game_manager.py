@@ -183,23 +183,9 @@ class GameStateManager:
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
             replyType, sentence_to_play = current_talk.continue_conversation()
             if replyType == comm_consts.KEY_REQUESTTYPE_TTS:
-                # if player input is detected mid-response, immediately process the player input.
-                # Guard: only ONE thread should call player_input (STT blocks for 30-120s,
-                # and the game sends continue_conversation every ~1.5s — without this guard
-                # we'd get 8+ concurrent threads all stuck in stt.get_latest_transcription).
-                with self._player_input_lock:
-                    if self._player_input_in_progress:
-                        # Another thread is already handling player input.
-                        # Sleep briefly then re-check conversation state.
-                        time.sleep(0.5)
-                        continue
-                    self._player_input_in_progress = True
-                try:
-                    reply = self.player_input({"mantella_context": {}, "mantella_player_input": "", "mantella_request_type": "mantella_player_input"})
-                    self.__first_line = False # since the NPC is already speaking in-game, setting this to True would just cause two voicelines to play at once
-                finally:
-                    with self._player_input_lock:
-                        self._player_input_in_progress = False
+                # if player input is detected mid-response, immediately process the player input
+                reply = self.player_input({"mantella_context": {}, "mantella_player_input": "", "mantella_request_type": "mantella_player_input"})
+                self.__first_line = False # since the NPC is already speaking in-game, setting this to True would just cause two voicelines to play at once
                 continue # continue conversation with new player input (ie call self.__talk.continue_conversation() again)
             elif replyType == comm_consts.KEY_REPLYTYPE_NPCACTION:
                 # Action-only response (no voiceline)
@@ -257,61 +243,75 @@ class GameStateManager:
         if not talk:
             return self.error_message("No running conversation.")
 
+        # Guard: only ONE thread should enter process_player_input at a time.
+        # STT blocks for 30-120+s, and both continue_conversation (TTS branch)
+        # and direct player_input HTTP requests can trigger this path concurrently.
+        # Without this guard, 8+ threads pile up in stt.get_latest_transcription.
+        with self._player_input_lock:
+            if self._player_input_in_progress:
+                logger.info("player_input already in progress on another thread, skipping")
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+            self._player_input_in_progress = True
+
         self.__last_activity_time = time.time()
         self.__first_line = True
 
-        player_text: str = input_json.get(comm_consts.KEY_REQUESTTYPE_PLAYERINPUT, '')
-        self.__update_context(input_json)
-        updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
-        if update_events:
-            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REQUESTTYPE_TTS, comm_consts.KEY_TRANSCRIBE: updated_player_text}
+        try:
+            player_text: str = input_json.get(comm_consts.KEY_REQUESTTYPE_PLAYERINPUT, '')
+            self.__update_context(input_json)
+            updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
+            if update_events:
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REQUESTTYPE_TTS, comm_consts.KEY_TRANSCRIBE: updated_player_text}
 
-        cleaned_player_text = utils.clean_text(updated_player_text)
-        npcs_in_conversation = talk.context.npcs_in_conversation
-        if not npcs_in_conversation.contains_multiple_npcs(): # actions are only enabled in 1-1 conversations
-            # Summary recall: player asks NPC to recap past conversations
-            if any(kw in cleaned_player_text for kw in ('summary', 'recap')):
-                recall_sentence = talk.handle_summary_recall()
-                if recall_sentence:
-                    topicInfoID = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE, 1))
-                    topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
-                    self.__game.prepare_sentence_for_game(recall_sentence, talk.context, self.__config, topicInfoID, self.__first_line)
-                    self.__first_line = False
-                    return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(recall_sentence, topicInfoID)}
+            cleaned_player_text = utils.clean_text(updated_player_text)
+            npcs_in_conversation = talk.context.npcs_in_conversation
+            if not npcs_in_conversation.contains_multiple_npcs(): # actions are only enabled in 1-1 conversations
+                # Summary recall: player asks NPC to recap past conversations
+                if any(kw in cleaned_player_text for kw in ('summary', 'recap')):
+                    recall_sentence = talk.handle_summary_recall()
+                    if recall_sentence:
+                        topicInfoID = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE, 1))
+                        topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
+                        self.__game.prepare_sentence_for_game(recall_sentence, talk.context, self.__config, topicInfoID, self.__first_line)
+                        self.__first_line = False
+                        return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(recall_sentence, topicInfoID)}
 
-            for action in self.__config.actions:
-                # if the player response is just the name of an action, force the action to trigger
-                if action.keyword.lower() == cleaned_player_text.lower().replace(' ','') and npcs_in_conversation.last_added_character:
-                    # Handle internal actions that don't go to the game
-                    if action.identifier == 'mantella_npc_listen':
-                        # Set listen_requested flag so the next player turn has extended pause
-                        pause_seconds = FunctionManager.get_action_pause_seconds('mantella_npc_listen')
-                        self.__chat_manager.set_listen_requested(pause_seconds)
-                        logger.log(23, f"Listen action triggered via keyword: Pause threshold increased to {pause_seconds} seconds for one turn")
-                        break # Don't send to game
+                for action in self.__config.actions:
+                    # if the player response is just the name of an action, force the action to trigger
+                    if action.keyword.lower() == cleaned_player_text.lower().replace(' ','') and npcs_in_conversation.last_added_character:
+                        # Handle internal actions that don't go to the game
+                        if action.identifier == 'mantella_npc_listen':
+                            # Set listen_requested flag so the next player turn has extended pause
+                            pause_seconds = FunctionManager.get_action_pause_seconds('mantella_npc_listen')
+                            self.__chat_manager.set_listen_requested(pause_seconds)
+                            logger.log(23, f"Listen action triggered via keyword: Pause threshold increased to {pause_seconds} seconds for one turn")
+                            break # Don't send to game
 
-                    if action.identifier == 'mantella_npc_vision':
-                        # Enable vision for the next LLM call
-                        self.__client.enable_vision_for_next_call()
-                        logger.log(23, "Vision action triggered via keyword: Vision enabled for next LLM call")
-                        break # Don't send to game
+                        if action.identifier == 'mantella_npc_vision':
+                            # Enable vision for the next LLM call
+                            self.__client.enable_vision_for_next_call()
+                            logger.log(23, "Vision action triggered via keyword: Vision enabled for next LLM call")
+                            break # Don't send to game
 
-                    return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCACTION,
-                            comm_consts.KEY_REPLYTYPE_NPCACTION: {
-                                'mantella_actor_speaker': npcs_in_conversation.last_added_character.game_name,
-                                'mantella_actor_actions': [{'identifier': action.identifier}],
+                        return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCACTION,
+                                comm_consts.KEY_REPLYTYPE_NPCACTION: {
+                                    'mantella_actor_speaker': npcs_in_conversation.last_added_character.game_name,
+                                    'mantella_actor_actions': [{'identifier': action.identifier}],
+                                    }
                                 }
-                            }
 
-        # if the player response is not an action command, return a regular player reply type
-        if player_spoken_sentence:
-            topicInfoID: int = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1))
-            topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
-            self.__game.prepare_sentence_for_game(player_spoken_sentence, talk.context, self.__config, topicInfoID, self.__first_line)
-            self.__first_line = False
-            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(player_spoken_sentence, topicInfoID)}
-        else:
-            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+            # if the player response is not an action command, return a regular player reply type
+            if player_spoken_sentence:
+                topicInfoID: int = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1))
+                topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
+                self.__game.prepare_sentence_for_game(player_spoken_sentence, talk.context, self.__config, topicInfoID, self.__first_line)
+                self.__first_line = False
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK, comm_consts.KEY_REPLYTYPE_NPCTALK: self.sentence_to_json(player_spoken_sentence, topicInfoID)}
+            else:
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+        finally:
+            with self._player_input_lock:
+                self._player_input_in_progress = False
 
     @utils.time_it
     def end_conversation(self, input_json: dict[str, Any]) -> dict[str, Any]:
