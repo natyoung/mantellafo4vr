@@ -84,6 +84,24 @@ class TestGenericNPCRegistry:
         assert "Preston Garvey" not in GENERIC_NPC_NAMES
         assert "Nick Valentine" not in GENERIC_NPC_NAMES
 
+    def test_corrupted_json_loads_empty(self, tmp_path: Path):
+        """A corrupted registry file should not crash — load as empty and back up the bad file."""
+        path = tmp_path / "registry.json"
+        path.write_text("{this is not valid json!!!", encoding="utf-8")
+        registry = GenericNPCRegistry(str(path))
+        # Should load successfully with no entries (not crash with JSONDecodeError)
+        assert registry.lookup("anything") is None
+
+    def test_corrupted_json_backs_up_bad_file(self, tmp_path: Path):
+        """When loading corrupted JSON, the bad file should be backed up before overwriting."""
+        path = tmp_path / "registry.json"
+        bad_content = "{this is not valid json!!!"
+        path.write_text(bad_content, encoding="utf-8")
+        GenericNPCRegistry(str(path))
+        backup = tmp_path / "registry.json.corrupt"
+        assert backup.exists(), "Corrupted file should be backed up"
+        assert backup.read_text(encoding="utf-8") == bad_content
+
     def test_non_generic_unknown_keeps_name(self, tmp_path: Path):
         """A non-generic NPC name (e.g. 'Custom Mod NPC') should NOT be renamed by the registry."""
         from src.generic_npc_registry import GENERIC_NPC_NAMES

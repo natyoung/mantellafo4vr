@@ -1,9 +1,13 @@
 from __future__ import annotations
 import json
+import logging
 import os
 import hashlib
+import shutil
 from dataclasses import dataclass, asdict
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -169,10 +173,16 @@ class GenericNPCRegistry:
 
     def _load(self):
         if os.path.exists(self._path):
-            with open(self._path, "r", encoding="utf-8") as f:
-                raw = json.load(f)
-            for ref_id, data in raw.items():
-                self._entries[ref_id] = GenericNPCIdentity(**data)
+            try:
+                with open(self._path, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+                for ref_id, data in raw.items():
+                    self._entries[ref_id] = GenericNPCIdentity(**data)
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.error(f"Corrupted registry file {self._path}: {e}. Backing up and starting fresh.")
+                backup = self._path + ".corrupt"
+                shutil.copy2(self._path, backup)
+                self._entries = {}
 
     def lookup(self, ref_id: str) -> GenericNPCIdentity | None:
         return self._entries.get(ref_id)
