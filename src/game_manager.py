@@ -65,6 +65,8 @@ class GameStateManager:
         STALE_SECONDS = 30
         if self.__talk and self.__last_activity_time and (time.time() - self.__last_activity_time) > STALE_SECONDS:
             logger.warning(f"Cleaning up stale conversation (no activity for {time.time() - self.__last_activity_time:.0f}s)")
+            if self.__stt:
+                self.__stt.stop_listening()  # Unblock any STT call from stale conversation
             self.__talk.end(async_save=True)
             self.__talk = None
             self.__last_start_time = 0
@@ -101,6 +103,8 @@ class GameStateManager:
             self._player_input_in_progress = False
 
         if self.__talk: #This should only happen if game and server are out of sync due to some previous error -> close conversation and start a new one
+            if self.__stt:
+                self.__stt.stop_listening()  # Unblock any STT call from old conversation's player_input
             self.__talk.end(async_save=True)
             self.__talk = None
 
@@ -265,8 +269,8 @@ class GameStateManager:
             # stale response so it doesn't pollute the F4SE_HTTP queue and confuse the
             # next conversation.
             if self.__talk is not talk:
-                logger.info("Conversation ended while waiting for player input, discarding stale response")
-                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
+                logger.info("Conversation changed while waiting for player input, discarding stale response (returning no-op npc_talk)")
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
 
             if update_events:
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REQUESTTYPE_TTS, comm_consts.KEY_TRANSCRIBE: updated_player_text}
