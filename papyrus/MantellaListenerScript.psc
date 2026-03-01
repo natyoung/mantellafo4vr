@@ -126,7 +126,7 @@ Function LoadMantellaEvents()
     EndIf
         Worldspace PlayerWorldspace = PlayerRef.GetWorldspace()
     if(PlayerWorldspace != PrewarWorldspace && PlayerWorldspace != None)
-        StartTimer(MantellaRadiantFrequency.getValue(),RadiantFrequencyTimerID)   
+        StartTimer(MantellaRadiantFrequency.getValue(),RadiantFrequencyTimerID)
     endif
     CheckGameVersionForMantella()
 Endfunction
@@ -181,7 +181,6 @@ Endfunction
 
 Event Ontimer( int TimerID)
     if TimerID==RadiantFrequencyTimerID
-        debug.notification("[Radiant] Timer fired. Enabled=" + MantellaRadiantEnabled.GetValue() + " ConvoRunning=" + conversation.IsRunning())
         if MantellaRadiantEnabled.GetValue()==1.000
             if !conversation.IsRunning()
                 MantellaActorList.start()
@@ -191,21 +190,12 @@ Event Ontimer( int TimerID)
                 if (Actor1 && Actor2)
                     float distanceToClosestActor = game.getplayer().GetDistance(Actor1)
                     float maxDistance = ConvertMeterToGameUnits(repository.radiantDistance)
-                    debug.notification("[Radiant] " + Actor1.getdisplayname() + " + " + Actor2.getdisplayname() + " dist=" + ConvertGameUnitsToMeter(distanceToClosestActor) + "m max=" + repository.radiantDistance + "m")
                     if distanceToClosestActor <= maxDistance
                         float distanceBetweenActors = Actor1.GetDistance(Actor2)
-                        debug.notification("[Radiant] Between actors: " + ConvertGameUnitsToMeter(distanceBetweenActors) + "m (max ~12.7m)")
                         if (distanceBetweenActors <= 1000)
-                            debug.notification("[Radiant] Casting spell: " + Actor2.getdisplayname() + " -> " + Actor1.getdisplayname())
                             MantellaSpell.Cast(Actor2 as ObjectReference, Actor1 as ObjectReference)
-                        else
-                            Debug.Notification("[Radiant] FAIL: NPCs too far from each other")
                         endIf
-                    else
-                        Debug.Notification("[Radiant] FAIL: Closest NPC too far from player")
                     endIf
-                else
-                    Debug.Notification("[Radiant] FAIL: Could not find 2 NPCs nearby")
                 endIf
 
                 MantellaActorList.stop()
