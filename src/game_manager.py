@@ -260,6 +260,14 @@ class GameStateManager:
             player_text: str = input_json.get(comm_consts.KEY_REQUESTTYPE_PLAYERINPUT, '')
             self.__update_context(input_json)
             updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
+
+            # If the conversation was ended while we were blocking on STT, discard this
+            # stale response so it doesn't pollute the F4SE_HTTP queue and confuse the
+            # next conversation.
+            if self.__talk is not talk:
+                logger.info("Conversation ended while waiting for player input, discarding stale response")
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
+
             if update_events:
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REQUESTTYPE_TTS, comm_consts.KEY_TRANSCRIBE: updated_player_text}
 
@@ -317,6 +325,11 @@ class GameStateManager:
     def end_conversation(self, input_json: dict[str, Any]) -> dict[str, Any]:
         self.__last_start_time = 0
         self.__last_start_actors = set()
+        # Stop STT immediately so any player_input thread blocking on mic exits promptly
+        # instead of waiting for the full 120s silence timeout (which would produce a stale
+        # HTTP response that pollutes the F4SE_HTTP queue and breaks the next conversation).
+        if self.__stt:
+            self.__stt.stop_listening()
         if(self.__talk):
             # Extract end timestamp from game client
             end_timestamp = input_json.get(comm_consts.KEY_ENDCONVERSATION_TIMESTAMP, None)

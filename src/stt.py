@@ -512,16 +512,26 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
             The transcribed text, or None if silence_timeout elapsed without any speech being detected
         """
         while True:
+            # Exit immediately if stop_listening was called (e.g. conversation ended on another thread)
+            if not self._running:
+                logger.debug('STT stopped externally, exiting get_latest_transcription')
+                return None
+
             # Use timeout only if silence_timeout > 0 and player hasn't started speaking yet
             use_timeout = silence_timeout > 0 and not self._speech_detected
             timeout_value = silence_timeout if use_timeout else None
-            
+
             received_transcription = self._transcription_ready.wait(timeout=timeout_value)
-            
+
+            # Check again after waking — stop_listening may have fired the event
+            if not self._running:
+                logger.debug('STT stopped while waiting, exiting get_latest_transcription')
+                return None
+
             if not received_transcription and use_timeout and not self._speech_detected:
                 logger.log(self.loglevel, f"Silence timeout of {silence_timeout} seconds reached without speech")
                 return None
-            
+
             with self._lock:
                 transcription = self._current_transcription
                 self._current_transcription = ''
@@ -547,18 +557,20 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
 
             self._speech_detected = False
             self._current_transcription = ''
-
-            time.sleep(0.1)
+            return None
 
 
     def stop_listening(self) -> None:
         """Stop listening for speech."""
         if not self._running:
             return
-            
+
         self._running = False
         self._speech_detected = False
-        
+
+        # Wake up any thread blocked in get_latest_transcription so it exits promptly
+        self._transcription_ready.set()
+
         # Stop and clean up audio stream
         if self._stream:
             self._stream.stop()
