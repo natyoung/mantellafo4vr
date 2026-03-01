@@ -180,43 +180,34 @@ Endfunction
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 Event Ontimer( int TimerID)
-   ;debug.notification("timer "+RadiantFrequencyTimerID+" finished counting from "+repository.radiantFrequency)
     if TimerID==RadiantFrequencyTimerID
+        debug.notification("[Radiant] Timer fired. Enabled=" + MantellaRadiantEnabled.GetValue() + " ConvoRunning=" + conversation.IsRunning())
         if MantellaRadiantEnabled.GetValue()==1.000
             if !conversation.IsRunning()
-                ;MantellaActorList taken from this tutorial:
-                ;http://skyrimmw.weebly.com/skyrim-modding/detecting-nearby-actors-skyrim-modding-tutorial
                 MantellaActorList.start()
                 Actor Actor1 = PotentialActor1.GetReference() as Actor
                 Actor Actor2 = PotentialActor2.GetReference() as Actor
 
-            ; if both actors found
                 if (Actor1 && Actor2)
                     float distanceToClosestActor = game.getplayer().GetDistance(Actor1)
                     float maxDistance = ConvertMeterToGameUnits(repository.radiantDistance)
+                    debug.notification("[Radiant] " + Actor1.getdisplayname() + " + " + Actor2.getdisplayname() + " dist=" + ConvertGameUnitsToMeter(distanceToClosestActor) + "m max=" + repository.radiantDistance + "m")
                     if distanceToClosestActor <= maxDistance
-                        String Actor1Name = Actor1.getdisplayname()
-                        String Actor2Name = Actor2.getdisplayname()
                         float distanceBetweenActors = Actor1.GetDistance(Actor2)
-
-                        ;TODO: make distanceBetweenActors customisable
+                        debug.notification("[Radiant] Between actors: " + ConvertGameUnitsToMeter(distanceBetweenActors) + "m (max ~12.7m)")
                         if (distanceBetweenActors <= 1000)
-                            ;have spell casted on Actor 1 by Actor 2
+                            debug.notification("[Radiant] Casting spell: " + Actor2.getdisplayname() + " -> " + Actor1.getdisplayname())
                             MantellaSpell.Cast(Actor2 as ObjectReference, Actor1 as ObjectReference)
                         else
-                            ;TODO: make this notification optional
-                            ;Debug.Notification("Radiant dialogue attempted. No NPCs available")
+                            Debug.Notification("[Radiant] FAIL: NPCs too far from each other")
                         endIf
                     else
-                        ;TODO: make this notification optional
-                        ;Debug.Notification("Radiant dialogue attempted. NPCs too far away at " + ConvertGameUnitsToMeter(distanceToClosestActor) + " meters")
-                        ;Debug.Notification("Max distance set to " + repository.radiantDistance + "m in Mantella MCM")
+                        Debug.Notification("[Radiant] FAIL: Closest NPC too far from player")
                     endIf
                 else
-                    ;Debug.Notification("Actor1 " + Actor1.GetDisplayName() + " Actor2 " + Actor2.GetDisplayName())
-                    ;Debug.Notification("Radiant dialogue attempted. No NPCs available")
+                    Debug.Notification("[Radiant] FAIL: Could not find 2 NPCs nearby")
                 endIf
-    
+
                 MantellaActorList.stop()
             endIf
         endIf
