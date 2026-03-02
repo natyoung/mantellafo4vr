@@ -224,18 +224,13 @@ class XTTS(TTSable):
     @utils.time_it
     def _check_if_xtts_is_running(self):
         try:
-            # contact local XTTS server; ~2 second timeout
             response = requests.get(self.__xtts_url, timeout=2)
             if response.status_code >= 500:
-                logger.log(self._loglevel, 'Could not connect to XTTS. Attempting to run headless server...')
-                self._run_xtts_server()
+                logger.warning(f'XTTS server at {self.__xtts_url} returned status {response.status_code}. TTS will fail until server is available.')
         except requests.exceptions.RequestException as err:
             if ('Connection aborted' in err.__str__()):
-                # so it is alive
                 return
-
-            logger.log(self._loglevel, 'Could not connect to XTTS. Attempting to run headless server...')
-            self._run_xtts_server()
+            logger.warning(f'Could not connect to XTTS at {self.__xtts_url}: {err}. TTS will fail until server is available.')
         
 
     @utils.time_it

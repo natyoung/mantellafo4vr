@@ -72,7 +72,7 @@ class mantella_route(routeable):
     def add_route_to_server(self, app: FastAPI):
         @app.post("/mantella")
         async def mantella(request: Request):
-            if not self._can_route_be_used():
+            if not await asyncio.to_thread(self._can_route_be_used):
                 error_message = "MantellaSoftware settings faulty. Please check MantellaSoftware's window or log."
                 logger.error(error_message)
                 return self.error_message(error_message)
