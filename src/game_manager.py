@@ -438,7 +438,8 @@ class GameStateManager:
 
     @utils.time_it
     def __update_context(self,  json: dict[str, Any]):
-        if self.__talk:
+        talk = self.__talk
+        if talk:
             if json.__contains__(comm_consts.KEY_ACTORS):
                 actors_in_json: list[Character] = []
                 for actorJson in json[comm_consts.KEY_ACTORS]:
@@ -447,8 +448,8 @@ class GameStateManager:
                         if actor:
                             actors_in_json.append(actor)
                 self._disambiguate_game_names(actors_in_json)
-                self.__talk.add_or_update_character(actors_in_json)
-            
+                talk.add_or_update_character(actors_in_json)
+
             location = None
             time = None
             game_days = None
@@ -460,7 +461,7 @@ class GameStateManager:
             if json.__contains__(comm_consts.KEY_CONTEXT):
                 if json[comm_consts.KEY_CONTEXT].__contains__(comm_consts.KEY_CONTEXT_LOCATION):
                     location: str = json[comm_consts.KEY_CONTEXT].get(comm_consts.KEY_CONTEXT_LOCATION, None)
-                
+
                 if json[comm_consts.KEY_CONTEXT].__contains__(comm_consts.KEY_CONTEXT_TIME):
                     time: int = json[comm_consts.KEY_CONTEXT][comm_consts.KEY_CONTEXT_TIME]
 
@@ -470,7 +471,7 @@ class GameStateManager:
                 if json[comm_consts.KEY_CONTEXT].__contains__(comm_consts.KEY_CONTEXT_INGAMEEVENTS):
                     logger.log(23, f'Received in-game events: {json[comm_consts.KEY_CONTEXT][comm_consts.KEY_CONTEXT_INGAMEEVENTS]}')
                     ingame_events: list[str] = json[comm_consts.KEY_CONTEXT][comm_consts.KEY_CONTEXT_INGAMEEVENTS]
-                
+
                 if json[comm_consts.KEY_CONTEXT].__contains__(comm_consts.KEY_CONTEXT_WEATHER):
                     weather = self.__game.get_weather_description(json[comm_consts.KEY_CONTEXT][comm_consts.KEY_CONTEXT_WEATHER])
 
@@ -484,7 +485,7 @@ class GameStateManager:
                     custom_context_values = json[comm_consts.KEY_CONTEXT][comm_consts.KEY_CONTEXT_CUSTOMVALUES]
                     logger.debug(f"Custom context values received: {list(custom_context_values.keys()) if custom_context_values else []}")
 
-                self.__talk.update_context(location, time, ingame_events, weather, npcs_nearby, custom_context_values, config_settings, game_days)
+                talk.update_context(location, time, ingame_events, weather, npcs_nearby, custom_context_values, config_settings, game_days)
     
     @utils.time_it
     def load_character(self, json: dict[str, Any]) -> Character | None:
