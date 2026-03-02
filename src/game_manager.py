@@ -56,6 +56,9 @@ class GameStateManager:
         self.__last_activity_time: float = 0
         self._player_input_lock = threading.Lock()
         self._player_input_in_progress = False
+        self.__last_tts_text: str | None = None  # Track text from last mantella_tts response
+        self.__last_tts_generation: int = 0       # Which conversation generation sent the TTS
+        self.__conversation_generation: int = 0   # Incremented on each new conversation
 
     ###### react to calls from the game #######
     @utils.time_it
@@ -107,6 +110,8 @@ class GameStateManager:
                 self.__stt.stop_listening()  # Unblock any STT call from old conversation's player_input
             self.__talk.end(async_save=True)
             self.__talk = None
+
+        self.__conversation_generation += 1
 
         world_id = "default"
         if input_json.__contains__(comm_consts.KEY_STARTCONVERSATION_WORLDID):
@@ -262,6 +267,18 @@ class GameStateManager:
 
         try:
             player_text: str = input_json.get(comm_consts.KEY_REQUESTTYPE_PLAYERINPUT, '')
+
+            # Discard stale TTS replay: when mantella_tts returns transcribed text,
+            # the game sends it back as player_input. If a new conversation started
+            # between the TTS response and the player_input, the text belongs to the
+            # old conversation and must not pollute the new one.
+            if (self.__last_tts_text
+                    and self.__last_tts_generation != self.__conversation_generation
+                    and player_text.strip() == self.__last_tts_text):
+                logger.warning(f"Discarding stale TTS replay from previous conversation: '{player_text.strip()[:80]}'")
+                self.__last_tts_text = None
+                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+
             self.__update_context(input_json)
             updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
 
@@ -273,6 +290,8 @@ class GameStateManager:
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
 
             if update_events:
+                self.__last_tts_text = updated_player_text.strip()
+                self.__last_tts_generation = self.__conversation_generation
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REQUESTTYPE_TTS, comm_consts.KEY_TRANSCRIBE: updated_player_text}
 
             cleaned_player_text = utils.clean_text(updated_player_text)
