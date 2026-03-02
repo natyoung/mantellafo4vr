@@ -279,6 +279,24 @@ class GameStateManager:
                 self.__last_tts_text = None
                 return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
 
+            # Intercept internal action keywords (listen, vision) BEFORE they reach
+            # process_player_input. These are commands, not dialogue — they should
+            # trigger their side effect and return without entering the message thread
+            # or starting LLM generation.
+            if player_text.strip():
+                cleaned_for_action = utils.clean_text(player_text)
+                for action in self.__config.actions:
+                    if action.keyword.lower() == cleaned_for_action.lower().replace(' ', ''):
+                        if action.identifier == 'mantella_npc_listen':
+                            pause_seconds = FunctionManager.get_action_pause_seconds('mantella_npc_listen')
+                            self.__chat_manager.set_listen_requested(pause_seconds)
+                            logger.log(23, f"Listen action triggered via keyword: Pause threshold increased to {pause_seconds} seconds for one turn")
+                            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+                        if action.identifier == 'mantella_npc_vision':
+                            self.__client.enable_vision_for_next_call()
+                            logger.log(23, "Vision action triggered via keyword: Vision enabled for next LLM call")
+                            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+
             self.__update_context(input_json)
             updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
 
@@ -310,20 +328,6 @@ class GameStateManager:
                 for action in self.__config.actions:
                     # if the player response is just the name of an action, force the action to trigger
                     if action.keyword.lower() == cleaned_player_text.lower().replace(' ','') and npcs_in_conversation.last_added_character:
-                        # Handle internal actions that don't go to the game
-                        if action.identifier == 'mantella_npc_listen':
-                            # Set listen_requested flag so the next player turn has extended pause
-                            pause_seconds = FunctionManager.get_action_pause_seconds('mantella_npc_listen')
-                            self.__chat_manager.set_listen_requested(pause_seconds)
-                            logger.log(23, f"Listen action triggered via keyword: Pause threshold increased to {pause_seconds} seconds for one turn")
-                            break # Don't send to game
-
-                        if action.identifier == 'mantella_npc_vision':
-                            # Enable vision for the next LLM call
-                            self.__client.enable_vision_for_next_call()
-                            logger.log(23, "Vision action triggered via keyword: Vision enabled for next LLM call")
-                            break # Don't send to game
-
                         return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCACTION,
                                 comm_consts.KEY_REPLYTYPE_NPCACTION: {
                                     'mantella_actor_speaker': npcs_in_conversation.last_added_character.game_name,
