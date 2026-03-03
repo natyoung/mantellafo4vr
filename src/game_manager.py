@@ -59,6 +59,7 @@ class GameStateManager:
         self.__last_tts_text: str | None = None  # Track text from last mantella_tts response
         self.__last_tts_generation: int = 0       # Which conversation generation sent the TTS
         self.__conversation_generation: int = 0   # Incremented on each new conversation
+        self.__end_conversation_sent = threading.Event()  # Prevents duplicate end_conversation responses flooding F4SE_HTTP queue
 
     ###### react to calls from the game #######
     @utils.time_it
@@ -100,6 +101,7 @@ class GameStateManager:
         self.__last_start_time = now
         self.__last_start_actors = actor_ids
         self.__last_activity_time = now
+        self.__end_conversation_sent.clear()  # Reset for new conversation
 
         # Reset player_input guard — a previous conversation's STT thread may have
         # hung (e.g. player died mid-speech), leaving the flag stuck True forever.
@@ -185,10 +187,8 @@ class GameStateManager:
         while True:
             if self.__talk is not current_talk:
                 # Conversation was replaced/ended by a concurrent request (e.g. end_conversation
-                # arrived while we were blocking on the sentence queue). Return end_conversation
-                # so the game doesn't process this stale response.
-                logger.warning("Conversation changed during continue_conversation, returning end_conversation")
-                return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
+                # arrived while we were blocking on the sentence queue).
+                return self._deduplicated_end_response("Conversation changed during continue_conversation")
             replyType, sentence_to_play = current_talk.continue_conversation()
             if replyType == comm_consts.KEY_REQUESTTYPE_TTS:
                 # if player input is detected mid-response, immediately process the player input
@@ -241,11 +241,14 @@ class GameStateManager:
                         # Reload on next continue, but first inform the player that a reload will happen with the "gather thoughts" voiceline
                         self.__should_reload = True
                 else:
-                    logger.warning("Conversation changed before sentence could be sent, discarding")
-                    return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
+                    return self._deduplicated_end_response("Conversation changed before sentence could be sent, discarding")
             else:
                 current_talk.end()
                 return self.error_message(sentence_to_play.error_message)
+
+        # Deduplicate end_conversation: only the first thread gets to send it
+        if reply.get(comm_consts.KEY_REPLYTYPE) == comm_consts.KEY_REPLYTYPE_ENDCONVERSATION:
+            return self._deduplicated_end_response("Conversation ended by LLM")
         return reply
 
     @utils.time_it
@@ -376,6 +379,21 @@ class GameStateManager:
         logger.log(24, '\nWaiting for player to select an NPC...')
         return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
     
+    def _deduplicated_end_response(self, reason: str) -> dict[str, Any]:
+        """Return end_conversation only if this is the first thread to do so.
+
+        When a conversation ends, multiple concurrent continue_conversation threads
+        all try to return end_conversation. Each response piles up in the F4SE_HTTP
+        queue as stale data. Only the first is legitimate; suppress the rest with a
+        harmless npctalk response that Papyrus will ignore (no speaker → no action).
+        """
+        if self.__end_conversation_sent.is_set():
+            logger.info(f"Suppressing duplicate end_conversation ({reason})")
+            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+        self.__end_conversation_sent.set()
+        logger.warning(reason)
+        return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_ENDCONVERSATION}
+
     def process_stt_setup(self, input_json: dict[str, Any]):
         '''Process the STT setup (mic / text / push-to-talk) based on the settings passed in the input JSON'''
         if input_json[comm_consts.KEY_INPUTTYPE] in (comm_consts.KEY_INPUTTYPE_MIC, comm_consts.KEY_INPUTTYPE_PTT):

@@ -140,6 +140,18 @@ function StartConversation(Actor[] actorsToStartConversationWith)
         Debug.MessageBox("Mantella conversation started! NPC will speak first.")
         EndIf
 
+    ; FO4VR fix: drain stale responses from F4SE_HTTP queue before starting.
+    ; When a conversation ends, multiple concurrent continue_conversation threads
+    ; each get an end_conversation response from Python. Only the first is consumed
+    ; by Papyrus; the rest sit in the queue. Without this drain, starting a new
+    ; conversation would READ a stale end_conversation and immediately kill it.
+    PollTimerActive = false
+    CancelTimer(_HttpPollTimer)
+    int staleHandle = F4SE_HTTP.GetHandle()
+    while staleHandle != -1
+        staleHandle = F4SE_HTTP.GetHandle()
+    endwhile
+
     int handle = F4SE_HTTP.createDictionary()
     ;F4SE_HTTP.setString(handle, mConsts.KEY_REQUESTTYPE, mConsts.KEY_REQUESTTYPE_INIT)
     ; send request to initialize Mantella settings (set LLM connection, start up TTS service, load character_df etc) 
