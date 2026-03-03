@@ -68,10 +68,11 @@ class GameStateManager:
         STALE_SECONDS = 30
         if self.__talk and self.__last_activity_time and (time.time() - self.__last_activity_time) > STALE_SECONDS:
             logger.warning(f"Cleaning up stale conversation (no activity for {time.time() - self.__last_activity_time:.0f}s)")
+            old_talk = self.__talk
+            self.__talk = None  # Null BEFORE stop_listening so player_input's stale guard fires
             if self.__stt:
                 self.__stt.stop_listening()  # Unblock any STT call from stale conversation
-            self.__talk.end(async_save=True)
-            self.__talk = None
+            old_talk.end(async_save=True)
             self.__last_start_time = 0
             self.__last_start_actors = set()
 
@@ -106,10 +107,11 @@ class GameStateManager:
             self._player_input_in_progress = False
 
         if self.__talk: #This should only happen if game and server are out of sync due to some previous error -> close conversation and start a new one
+            old_talk = self.__talk
+            self.__talk = None  # Null BEFORE stop_listening so player_input's stale guard fires
             if self.__stt:
                 self.__stt.stop_listening()  # Unblock any STT call from old conversation's player_input
-            self.__talk.end(async_save=True)
-            self.__talk = None
+            old_talk.end(async_save=True)
 
         self.__conversation_generation += 1
 
@@ -170,9 +172,6 @@ class GameStateManager:
             self.__talk.reload_conversation()
             self.__should_reload = False
 
-        topicInfoID: int = int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1))
-        topicInfoID = self.__game.get_corrected_topic_id(topicInfoID)
-
         self.__update_context(input_json)
         
         # If we were waiting for game context (two-way communication), start LLM now
@@ -229,6 +228,11 @@ class GameStateManager:
             if not sentence_to_play.error_message:
                 # Use current_talk for context since self.__talk may have changed
                 if self.__talk is current_talk:
+                    # Assign topicID at moment of use, not at request entry, to prevent
+                    # race conditions from concurrent continue_conversation threads
+                    topicInfoID = self.__game.get_corrected_topic_id(
+                        int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE, 1))
+                    )
                     self.__game.prepare_sentence_for_game(sentence_to_play, current_talk.context, self.__config, topicInfoID, self.__first_line)
                     reply[comm_consts.KEY_REPLYTYPE_NPCTALK] = self.sentence_to_json(sentence_to_play, topicInfoID)
                     self.__first_line = False
@@ -355,13 +359,17 @@ class GameStateManager:
         # Stop STT immediately so any player_input thread blocking on mic exits promptly
         # instead of waiting for the full 120s silence timeout (which would produce a stale
         # HTTP response that pollutes the F4SE_HTTP queue and breaks the next conversation).
-        if self.__stt:
-            self.__stt.stop_listening()
+        # Null self.__talk BEFORE stop_listening so player_input's stale guard fires.
         if(self.__talk):
+            old_talk = self.__talk
+            self.__talk = None
+            if self.__stt:
+                self.__stt.stop_listening()
             # Extract end timestamp from game client
             end_timestamp = input_json.get(comm_consts.KEY_ENDCONVERSATION_TIMESTAMP, None)
-            self.__talk.end(end_timestamp)
-            self.__talk = None
+            old_talk.end(end_timestamp)
+        elif self.__stt:
+            self.__stt.stop_listening()
 
         logger.log(24, '\nConversations not starting when you select an NPC? See here:')
         logger.log(25, 'https://art-from-the-machine.github.io/Mantella/pages/issues_qna')
