@@ -72,6 +72,7 @@ class ConversationDB:
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA busy_timeout=5000")
             self._conn.executescript(_SCHEMA)
+            self._migrate_schema()
         return self._conn
 
     # -- Conversations --
@@ -85,12 +86,25 @@ class ConversationDB:
         self.conn.commit()
         return conv_id
 
-    def end_conversation(self, conversation_id: str):
+    def end_conversation(self, conversation_id: str, game_days: float | None = None):
         self.conn.execute(
-            "UPDATE conversations SET ended_at = ? WHERE id = ?",
-            (time.time(), conversation_id),
+            "UPDATE conversations SET ended_at = ?, game_days = ? WHERE id = ?",
+            (time.time(), game_days, conversation_id),
         )
         self.conn.commit()
+
+    def get_last_conversation_game_days(self, world_id: str, npc_name: str, npc_ref_id: str) -> float | None:
+        """Get game_days of the most recent ended conversation with this NPC."""
+        cur = self.conn.execute(
+            """SELECT c.game_days FROM conversations c
+               JOIN messages m ON m.conversation_id = c.id
+               WHERE m.world_id = ? AND m.npc_name = ? AND m.npc_ref_id = ?
+                 AND c.game_days IS NOT NULL
+               ORDER BY c.ended_at DESC LIMIT 1""",
+            (world_id, npc_name, npc_ref_id),
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
 
     # -- Messages --
 
@@ -220,6 +234,14 @@ class ConversationDB:
         self.conn.commit()
 
     # -- Migration --
+
+    def _migrate_schema(self):
+        """Add columns that may not exist in older databases."""
+        try:
+            self._conn.execute("SELECT game_days FROM conversations LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.execute("ALTER TABLE conversations ADD COLUMN game_days REAL")
+            self._conn.commit()
 
     def _migrate_existing_files(self):
         """Import existing summary text files into DB on first run."""

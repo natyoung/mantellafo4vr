@@ -31,7 +31,7 @@ class Context:
     }
 
     @utils.time_it
-    def __init__(self, world_id: str, config: ConfigLoader, client: LLMClient, rememberer: Remembering, language: dict[Hashable, str]) -> None:
+    def __init__(self, world_id: str, config: ConfigLoader, client: LLMClient, rememberer: Remembering, language: dict[Hashable, str], conversation_db=None) -> None:
         self.__world_id = world_id
         self.__hourly_time = config.hourly_time
         self.__prev_game_time: tuple[str | None, str] | None = None
@@ -39,6 +39,7 @@ class Context:
         self.__config: ConfigLoader = config
         self.__client: LLMClient = client
         self.__rememberer: Remembering = rememberer
+        self.__conversation_db = conversation_db
         self.__language: dict[Hashable, str] = language
         self.__weather: str = ""
         self.__config_settings: dict[str, Any] = {}
@@ -145,13 +146,18 @@ class Context:
             return self.__custom_context_values[key]
         return None
     
-    def get_game_context(self) -> str:
+    def get_game_context(self, days_since_last_spoke: float | None = None) -> str:
         """Build complete game context string from custom context values.
-        
+
         Includes: situation, danger, player state, NPC state, nearby NPCs, settlement, quests.
         Returns content WITHOUT wrapper tags - the prompt template provides those.
         """
         sections = []
+
+        # === TIME SINCE LAST CONVERSATION ===
+        if days_since_last_spoke is not None and days_since_last_spoke >= 7:
+            days = int(days_since_last_spoke)
+            sections.append(f"You last spoke to the player {days} days ago.")
         
         # === SITUATION ===
         situation_parts = []
@@ -849,8 +855,18 @@ class Context:
         # Only include legacy action prompts if advanced actions are disabled
         actions = self.__get_action_texts(actions_for_prompt) if not self.__config.advanced_actions_enabled else ""
         
+        # Calculate days since last conversation with this NPC
+        days_since = None
+        if self.__game_days > 1 and self.__conversation_db:
+            for char in self.get_characters_excluding_player().get_all_characters():
+                base_name = utils.remove_trailing_number(char.name)
+                last_days = self.__conversation_db.get_last_conversation_game_days(self.__world_id, base_name, char.ref_id)
+                if last_days is not None:
+                    days_since = self.__game_days - last_days
+                    break
+
         # Get game context (quests, etc.) from Papyrus
-        game_context = self.get_game_context()
+        game_context = self.get_game_context(days_since_last_spoke=days_since)
         has_quest_context = bool(game_context)
         logger.info(f"generate_system_message: game_context length = {len(game_context)}, has content = {has_quest_context}")
         
