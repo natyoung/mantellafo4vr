@@ -1,4 +1,3 @@
-import os
 import time
 from src.config.config_loader import ConfigLoader
 from src.games.gameable import Gameable
@@ -6,7 +5,6 @@ from src.llm.llm_client import LLMClient
 from src.llm.message_thread import message_thread
 from src.llm.messages import UserMessage
 from src.characters_manager import Characters
-from src.character_manager import Character
 from src.remember.remembering import Remembering
 from src import utils
 
@@ -14,9 +12,7 @@ logger = utils.get_logger()
 
 
 class Summaries(Remembering):
-    """ Stores a conversation as a summary in a text file.
-        Loads the latest summary from disk for a prompt text.
-    """
+    """Stores and loads conversation summaries via SQLite."""
     def __init__(self, game: Gameable, config: ConfigLoader, client: LLMClient, language_name: str, summary_limit_pct: float = 0.3) -> None:
         super().__init__()
         self.loglevel = 28
@@ -39,41 +35,22 @@ class Summaries(Remembering):
         Returns:
             str: a concatenation of the summaries as a single string
         """
-        # Try DB-backed summaries first
-        if self.__db:
-            paragraphs = []
-            for character in npcs_in_conversation.get_all_characters():
-                if not character.is_player_character:
-                    base_name = utils.remove_trailing_number(character.name)
-                    db_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
-                    for s in db_summaries:
-                        content = s["content"].strip()
-                        if content:
-                            for line in content.split("\n"):
-                                line = line.strip()
-                                if line and line not in paragraphs:
-                                    paragraphs.append(line)
-            if paragraphs:
-                result = "\n".join(paragraphs)
-                return f"Below is a summary of past events:\n{result}"
-            return ""
-
-        # Fall back to file-based summaries
         paragraphs = []
         for character in npcs_in_conversation.get_all_characters():
             if not character.is_player_character:
-                conversation_summary_file = self.__get_latest_conversation_summary_file_path(character.name, character.ref_id, world_id)
-                if os.path.exists(conversation_summary_file):
-                    with open(conversation_summary_file, 'r', encoding='utf-8') as f:
-                        for line in f:
+                base_name = utils.remove_trailing_number(character.name)
+                db_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
+                for s in db_summaries:
+                    content = s["content"].strip()
+                    if content:
+                        for line in content.split("\n"):
                             line = line.strip()
                             if line and line not in paragraphs:
-                                paragraphs.append(line.strip())
+                                paragraphs.append(line)
         if paragraphs:
             result = "\n".join(paragraphs)
             return f"Below is a summary of past events:\n{result}"
-        else:
-            return ""
+        return ""
 
     @utils.time_it
     def save_conversation_state(self, messages: message_thread, npcs_in_conversation: Characters, world_id: str, is_reload=False, pending_shares: list[tuple[str, str, str]] | None = None, end_timestamp: float | None = None):
@@ -81,96 +58,35 @@ class Summaries(Remembering):
 
         for npc in npcs_in_conversation.get_all_characters():
             if not npc.is_player_character:
-                if len(summary) < 1: # if a summary has not already been generated, make one
+                if len(summary) < 1:
                     summary = self.__create_new_conversation_summary(messages, npc.name, end_timestamp)
-                if len(summary) > 0 or is_reload: # if a summary has been generated, give the same summary to all NPCs
-                    self.__append_new_conversation_summary(summary, npc.name, npc.ref_id, world_id)
-                    # Also save to DB
-                    if self.__db and len(summary) > 0:
-                        base_name = utils.remove_trailing_number(npc.name)
-                        from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, npc.ref_id) or 0.0
-                        to_ts = time.time()
-                        self.__db.save_summary(world_id, base_name, npc.ref_id, summary, from_ts, to_ts)
-                        self.__check_db_summary_overflow(world_id, base_name, npc.ref_id, npc.name)
+                if len(summary) > 0:
+                    base_name = utils.remove_trailing_number(npc.name)
+                    from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, npc.ref_id) or 0.0
+                    to_ts = time.time()
+                    self.__db.save_summary(world_id, base_name, npc.ref_id, summary, from_ts, to_ts)
+                    self.__check_db_summary_overflow(world_id, base_name, npc.ref_id, npc.name)
 
-        # Handle pending shares: write summary with prefix to recipient folders
+        # Handle pending shares
         if pending_shares and len(summary) > 0:
             for sharer_name, recipient_name, recipient_ref_id in pending_shares:
-                # Build participant names list, excluding the sharer and annotating the player
                 participant_names = []
                 for npc in npcs_in_conversation.get_all_characters():
                     if npc.name == sharer_name:
-                        continue  # Exclude sharer from participant list
+                        continue
                     if npc.is_player_character:
                         participant_names.append(f"{npc.name} (the player)")
                     else:
                         participant_names.append(npc.name)
 
-                # Create prefixed summary
                 participants_text = ", ".join(participant_names) if participant_names else "others"
                 prefixed_summary = f"{sharer_name} shared with {recipient_name} a conversation with {participants_text}:\n{summary}"
 
-                self.__append_new_conversation_summary(prefixed_summary, recipient_name, recipient_ref_id, world_id)
-                # Also save shared summary to DB
-                if self.__db:
-                    base_recipient = utils.remove_trailing_number(recipient_name)
-                    from_ts = self.__db.get_latest_summary_to_ts(world_id, base_recipient, recipient_ref_id) or 0.0
-                    self.__db.save_summary(world_id, base_recipient, recipient_ref_id, prefixed_summary, from_ts, time.time())
+                base_recipient = utils.remove_trailing_number(recipient_name)
+                from_ts = self.__db.get_latest_summary_to_ts(world_id, base_recipient, recipient_ref_id) or 0.0
+                self.__db.save_summary(world_id, base_recipient, recipient_ref_id, prefixed_summary, from_ts, time.time())
                 logger.info(f"Shared conversation summary with {recipient_name}")
 
-    @utils.time_it
-    def __get_latest_conversation_summary_file_path(self, npc_name: str, npc_ref_id: str, world_id: str) -> str:
-        """
-        Get the path to the latest conversation summary file, prioritizing name_ref folders over legacy name folders.
-        
-        Args:
-            npc_name: Name of the NPC
-            npc_ref_id: The ref_id of the NPC
-            world_id: ID of the game world
-        
-        Returns:
-            str: Path to the latest conversation summary file
-        """
-        # Remove trailing numbers from character names (e.g., "Whiterun Guard 1" -> "Whiterun Guard")
-        base_name: str = utils.remove_trailing_number(npc_name)
-        name_ref: str = f'{base_name} - {npc_ref_id}'
-        
-        def get_folder_path(folder_name: str) -> str:
-            return os.path.join(self.__game.conversation_folder_path, world_id, folder_name).replace(os.sep, '/')
-        
-        def get_latest_file_number(folder_path: str) -> int:
-            if not os.path.exists(folder_path):
-                return 1
-                
-            # Only match summary files: summary_1.txt, summary_2.txt, etc.
-            import re
-            summary_pattern = re.compile(r'^summary_(\d+)\.txt$')
-            file_numbers = []
-            for f in os.listdir(folder_path):
-                match = summary_pattern.match(f)
-                if match:
-                    file_numbers.append(int(match.group(1)))
-            
-            return max(file_numbers) if file_numbers else 1
-        
-        # Check folders in priority order
-        name_ref_path = get_folder_path(name_ref)
-        name_path = get_folder_path(base_name)
-        
-        # Determine which folder path to use based on existence
-        if os.path.exists(name_ref_path):
-            target_folder = name_ref_path
-            logger.info(f"Loaded latest summary file from: {target_folder}")
-        elif os.path.exists(name_path):
-            target_folder = name_path
-            logger.info(f"Loaded latest summary file from: {target_folder}")
-        else:
-            target_folder = name_ref_path  # Use name_ref format for new folders
-            logger.info(f"{name_ref_path} does not exist. A new summary file will be created.")
-        
-        latest_file_number = get_latest_file_number(target_folder)
-        return f"{target_folder}/{base_name}_summary_{latest_file_number}.txt"
-    
     @utils.time_it
     def __create_new_conversation_summary(self, messages: message_thread, npc_name: str, end_timestamp: float | None = None) -> str:
         prompt = self.__memory_prompt.format(
@@ -195,57 +111,6 @@ class Summaries(Remembering):
                 time.sleep(5)
                 continue
         return ""
-
-    @utils.time_it
-    def __append_new_conversation_summary(self, new_summary: str, npc_name: str, npc_ref_id: str, world_id: str):
-        # if this is not the first conversation
-        conversation_summary_file = self.__get_latest_conversation_summary_file_path(npc_name, npc_ref_id, world_id)
-        if os.path.exists(conversation_summary_file):
-            with open(conversation_summary_file, 'r', encoding='utf-8') as f:
-                previous_conversation_summaries = f.read()
-        # if this is the first conversation
-        else:
-            directory = os.path.dirname(conversation_summary_file)
-            os.makedirs(directory, exist_ok=True)
-            previous_conversation_summaries = ''
-       
-        if len(new_summary) > 0:
-            conversation_summaries = previous_conversation_summaries + new_summary
-            with open(conversation_summary_file, 'w', encoding='utf-8') as f:
-                f.write(conversation_summaries)
-        else:
-            conversation_summaries = previous_conversation_summaries
-            
-
-        summary_limit = round(self.__client.token_limit*self.__summary_limit_pct,0)
-
-        count_tokens_summaries = self.__client.get_count_tokens(conversation_summaries)
-        # if summaries token limit is reached, summarize the summaries
-        if count_tokens_summaries > summary_limit:
-            logger.info(f'Token limit of conversation summaries reached ({count_tokens_summaries} / {summary_limit} tokens). Creating new summary file...')
-            while True:
-                try:
-                    prompt = self.__resummarize_prompt.format(
-                        name=npc_name,
-                        language=self.__language_name,
-                        game=self.__game.game_name_in_filepath
-                    )
-                    long_conversation_summary = self.summarize_conversation(conversation_summaries, prompt, npc_name)
-                    break
-                except:
-                    logger.error('Failed to summarize conversation. Retrying...')
-                    time.sleep(5)
-                    continue
-
-            # Split the file path and increment the number by 1
-            base_directory, filename = os.path.split(conversation_summary_file)
-            file_prefix, old_number = filename.rsplit('_', 1)
-            old_number = os.path.splitext(old_number)[0]
-            new_number = int(old_number) + 1
-            new_conversation_summary_file = os.path.join(base_directory, f"{file_prefix}_{new_number}.txt")
-
-            with open(new_conversation_summary_file, 'w', encoding='utf-8') as f:
-                f.write(long_conversation_summary)
 
     def __check_db_summary_overflow(self, world_id: str, base_name: str, ref_id: str, npc_name: str):
         """If total DB summaries exceed token limit, condense them."""
