@@ -188,7 +188,7 @@ Event OnSit(ObjectReference akFurniture)
         String furnitureName = akFurniture.getbaseobject().getname()
         ; only save event if actor is sitting / resting on furniture (and not just, for example, leaning on a bar table)
         if furnitureName != ""
-            conversation.AddIngameEvent(selfName+" interacted with "+furnitureName) 
+            conversation.AddIngameEvent(selfName+" sat down on a "+furnitureName)
         endIf
     endif
 endEvent
@@ -232,7 +232,7 @@ Event OnCommandModeGiveCommand(int aeCommandType, ObjectReference akTarget)
         elseif aeCommandType==4 ;Attack
             commandMessage=" attacked "+akTarget.GetDisplayName()+" at the player's request"
         elseif aeCommandType==5 ;Inspect
-            commandMessage=" was asked to interact with "+akTarget.GetDisplayName()+" at the player's request"
+            commandMessage=" was asked to use "+akTarget.GetDisplayName()+" (an object) at the player's request"
         elseif aeCommandType==6 ;Retrieve
             if akTarget.GetDisplayName()!=""
                 commandMessage=" is retrieving "+akTarget.GetDisplayName()+" at the player's request"
@@ -280,7 +280,7 @@ Event OnCommandModeCompleteCommand(int aeCommandType, ObjectReference akTarget)
         elseif aeCommandType==4 ;Attack
             commandMessage=" attacked "+akTarget.GetDisplayName()+" at the player's request"
         elseif aeCommandType==5 ;Inspect
-            commandMessage=" interacted with "+akTarget.GetDisplayName()+" at the player's request"
+            commandMessage=" used "+akTarget.GetDisplayName()+" (an object) at the player's request"
         elseif aeCommandType==6 ;Retrieve
             commandMessage=" retrieved items at the player's request"
         elseif aeCommandType==7 ;Stay
