@@ -298,7 +298,12 @@ String lastHitSource = ""
 String lastAggressor = ""
 Int timesHitSameAggressorSource = 0
 Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource, Projectile akProjectile, bool abPowerAttack, bool abSneakAttack, bool abBashAttack, bool abHitBlocked, string apMaterial)
-    if repository.targetTrackingOnHit 
+    if repository.targetTrackingOnHit
+         ; Skip player-on-companion hits (produces false positives in VR)
+         if akAggressor == Game.GetPlayer() && self.GetTargetActor().IsPlayerTeammate()
+             RegisterForHitEvent(self.GetTargetActor())
+             return
+         endif
          String aggressor
          if akAggressor == Game.GetPlayer()
              aggressor = "The player"
