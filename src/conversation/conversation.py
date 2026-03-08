@@ -453,6 +453,9 @@ class Conversation:
             new_message.is_system_generated_message = True # Flag message containing goodbye as a system message to exclude from summary
             self.initiate_end_sequence()
         else:
+            # Enable vision on silence timeout so NPC can comment on what they see
+            if is_silence_timeout and self.__llm_client:
+                self.__llm_client.enable_vision_for_next_call()
             self.__start_generating_npc_sentences()
         self.__persist_new_messages()  # Persist after flags are set (goodbye, summary recall, etc.)
 
