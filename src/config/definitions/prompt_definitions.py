@@ -222,9 +222,10 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                                name = the NPC's name
                                                language = the selected language
                                                game = the game selected""" 
-        memory_prompt = """You are tasked with summarizing the conversation between {name} (the assistant) and the player (the user) / other characters. These conversations take place in {game}. 
-                                            It is not necessary to comment on any mixups in communication such as mishearings. Text contained within brackets state in-game events. 
-                                            Please summarize the conversation into a single paragraph in {language}."""
+        memory_prompt = """Summarize this conversation from {name}'s perspective, as their personal memory. These conversations take place in {game}.
+                                            Write as if {name} is remembering what happened. Refer to the player as "the player" (never by name). Refer to {name} in first person (I, me, my).
+                                            Ignore any mishearings or communication mixups. Text in brackets describes in-game events.
+                                            Write a single paragraph in {language}."""
         return ConfigValueString("memory_prompt","Memory Prompt",memory_prompt_description,memory_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game"])])
     
     @staticmethod
@@ -241,8 +242,9 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                                 name = the NPC's name
                                                 language = the selected language
                                                 game = the game selected""" 
-        resummarize_prompt = """You are tasked with summarizing the conversation history between {name} (the assistant) and the player (the user) / other characters. These conversations take place in {game}.
-                                            Each paragraph represents a conversation at a new point in time. Timestamps in square brackets (eg [Day 42, 5 in the early evening]) indicate when each conversation occurred. Please summarize these conversations into a single paragraph in {language}."""
+        resummarize_prompt = """Condense {name}'s memories into a single paragraph, written from {name}'s perspective (first person). These take place in {game}.
+                                            Each paragraph is a separate memory. Timestamps in square brackets indicate when each event occurred. Refer to the player as "the player" (never by name).
+                                            Preserve key events and relationships. Write in {language}."""
         return ConfigValueString("resummarize_prompt","Resummarize Prompt",resummarize_prompt_description,resummarize_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game"])])
     
     @staticmethod
