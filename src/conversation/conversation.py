@@ -466,8 +466,8 @@ class Conversation:
         """
         config = self.__context.config
         prompt_names = self.__context.npcs_in_conversation.get_all_prompt_names(include_player=False)
-        npc_name = prompt_names[0] if prompt_names else "NPC"
-        
+        npc_names_str = ", ".join(prompt_names) if prompt_names else "NPC"
+
         # Use dynamic vocab if available (already includes static + conversation terms)
         # Otherwise fall back to static vocab from config
         if self.__dynamic_vocab:
@@ -475,9 +475,9 @@ class Conversation:
         else:
             # Static vocab from config (only used before first LLM response)
             vocab = config.stt_prompt
-        
-        # Build final prompt: NPC name, location, vocabulary
-        prompt = f"{npc_name}, {self.__context.location}. {vocab}"
+
+        # Build final prompt: all NPC names, location, vocabulary
+        prompt = f"{npc_names_str}, {self.__context.location}. {vocab}"
         
         # Ensure under Whisper's limit (~224 tokens)
         if len(prompt) > self.WHISPER_PROMPT_MAX_CHARS:
