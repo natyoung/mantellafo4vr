@@ -240,6 +240,10 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
         if self.proactive_mic_mode:
             logger.log(self.loglevel, f'Interim transcription: {transcription}')
         
+        # Fix common Whisper mistranscriptions of NPC names (e.g. Kate → Cait)
+        if transcription:
+            transcription = self._apply_name_corrections(transcription)
+
         # Only update the transcription if it contains a value, otherwise keep the existing transcription
         if transcription:
             return transcription
@@ -348,6 +352,7 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
         self._running = True
         self._reset_state()
         self.prompt = prompt
+        self._name_corrections = self._build_name_corrections(prompt)
         
         # Start audio stream
         self._stream = InputStream(
@@ -592,6 +597,46 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
         self._reset_state()
         logger.log(self.loglevel, 'Stopped listening for mic input')
 
+
+    @staticmethod
+    def _build_name_corrections(prompt: str) -> dict[str, str]:
+        """Build case-insensitive correction map for NPC names from Whisper prompt.
+
+        Whisper often mistranscribes unusual names phonetically (e.g. Cait → Kate,
+        Danse → Dance, Codsworth → Cotsworth). This extracts names from the prompt
+        and maps common phonetic variants back to the correct spelling.
+        """
+        # Common Whisper mistranscriptions: {wrong: right}
+        # Only activated when the correct name is in the current prompt
+        PHONETIC_VARIANTS: dict[str, list[str]] = {
+            'Cait': ['Kate', 'Cate', 'Kait'],
+            'Danse': ['Dance', 'Dants', 'Dunce'],
+            'Codsworth': ['Cotsworth', 'Codsworth'],
+            'Curie': ['Curry', 'Curios', 'Curious'],
+            'Deacon': ['Deakon', 'Deeken'],
+            'Piper': ['Pyper', 'Viper'],
+            'MacCready': ['McCready', 'McReady', 'Macready'],
+            'Hancock': ['Handcock'],
+            'Minutemen': ['Minute Men', 'Minute men'],
+            'Paladin': ['Palladin'],
+            'Prydwen': ['Pridden', 'Prudwen', 'Prydwin'],
+        }
+        corrections: dict[str, str] = {}
+        prompt_lower = prompt.lower()
+        for correct_name, variants in PHONETIC_VARIANTS.items():
+            if correct_name.lower() in prompt_lower:
+                for variant in variants:
+                    corrections[variant.lower()] = correct_name
+        return corrections
+
+    def _apply_name_corrections(self, text: str) -> str:
+        """Fix common Whisper mistranscriptions of NPC names."""
+        if not self._name_corrections or not text:
+            return text
+        import re
+        for wrong_lower, correct in self._name_corrections.items():
+            text = re.sub(re.escape(wrong_lower), correct, text, flags=re.IGNORECASE)
+        return text
 
     @staticmethod
     @utils.time_it
