@@ -419,7 +419,7 @@ class Conversation:
                 self.__stop_generation()
                 self.__sentences.clear()
 
-                if time.time() - input_wait_start_time >= self.__events_refresh_time:
+                if not is_silence_timeout and time.time() - input_wait_start_time >= self.__events_refresh_time:
                     # If too much time has passed, in-game events need to be updated
                     events_need_updating = True
                     logger.debug('Updating game events...')
