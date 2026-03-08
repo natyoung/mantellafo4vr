@@ -49,7 +49,7 @@ class Summaries(Remembering):
                                 paragraphs.append(line)
         if paragraphs:
             result = "\n".join(paragraphs)
-            return f"Below is a summary of past events:\n{result}"
+            return f"Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked:\n{result}"
         return ""
 
     @utils.time_it
