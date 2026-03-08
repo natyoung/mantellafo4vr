@@ -298,7 +298,7 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
         description = """Static vocabulary to help Whisper recognize Fallout 4 terms.
                         Dynamic vocabulary (proper nouns from conversation) is added automatically.
                         Keep under 500 chars - dynamic vocab adds more. Total limit ~900 chars."""
-        default_prompt = """Vault-Tec, Nuka-Cola, Commonwealth, wasteland, caps, RadAway, Stimpak, Brotherhood of Steel, Institute, Railroad, Minutemen, synth, deathclaw, Diamond City, Goodneighbor, Sanctuary Hills, Preston Garvey, Nick Valentine, Piper, Codsworth, Dogmeat, Paladin Danse, Prydwen, Vertibird"""
+        default_prompt = """Vault-Tec, Nuka-Cola, Commonwealth, wasteland, caps, RadAway, Stimpak, Brotherhood of Steel, Institute, Railroad, Minutemen, synth, deathclaw, Diamond City, Goodneighbor, Sanctuary Hills, Preston Garvey, Nick Valentine, Piper, Cait, Curie, Codsworth, Dogmeat, MacCready, Paladin Danse, Hancock, Deacon, Prydwen, Vertibird"""
         return ConfigValueString("stt_prompt_fallout4", "Fallout 4 STT Vocabulary", description, default_prompt)
     
     @staticmethod
