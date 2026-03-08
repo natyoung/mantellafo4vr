@@ -5,7 +5,7 @@
     "key": "Vision",
     "enabled": true,
     "prompt": "To see what the player sees, begin your response with '{key}:'.",
-    "allowed_games": ["skyrim"],
+    "allowed_games": ["skyrim", "fallout4"],
     "requires_response": false,
     "is-interrupting": false,
     "allow_repeat": true,
