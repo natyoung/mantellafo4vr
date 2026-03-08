@@ -209,22 +209,24 @@ class QuestContextBuilder:
             idx = match.group(1)
             stage_num = int(match.group(2))
             
-            if stage_num >= 1000:
+            if stage_num >= 300:
                 continue
-            
+
             # Get log entry
             log_match = re.search(r'\|+log' + idx + r'[ \t]*=[ \t]*([^\n]*)', wiki)
             log = self._clean_markup(log_match.group(1)).strip() if log_match else ""
-            
+
             # Fallback to desc
             if not log:
                 desc_match = re.search(r'\|+desc' + idx + r'\s*=\s*([^\n]+)', wiki)
                 log = self._clean_markup(desc_match.group(1)).strip() if desc_match else ""
-            
-            if log:
-                if len(log) > 200:
-                    log = log[:197] + "..."
-                stages.append((stage_num, log))
+
+            if not log or log.lower() in ("quest failed", "quest complete"):
+                continue
+
+            if len(log) > 200:
+                log = log[:197] + "..."
+            stages.append((stage_num, log))
         
         if not stages:
             return ""
@@ -251,24 +253,26 @@ class QuestContextBuilder:
             idx = match.group(1)
             stage_num = int(match.group(2))
             
-            if stage_num >= 1000:
+            if stage_num >= 300:
                 continue
-            
+
             log_match = re.search(r'\|+log' + idx + r'[ \t]*=[ \t]*([^\n]*)', wiki)
             log = self._clean_markup(log_match.group(1)).strip() if log_match else ""
-            
+
             if not log:
                 desc_match = re.search(r'\|+desc' + idx + r'\s*=\s*([^\n]+)', wiki)
                 log = self._clean_markup(desc_match.group(1)).strip() if desc_match else ""
-            
-            if log:
-                if len(log) > 150:
-                    log = log[:147] + "..."
-                stages.append((stage_num, log))
-        
+
+            if not log or log.lower() in ("quest failed", "quest complete"):
+                continue
+
+            if len(log) > 150:
+                log = log[:147] + "..."
+            stages.append((stage_num, log))
+
         if not stages:
             return ""
-        
+
         stages.sort(key=lambda x: x[0])
         return "Stages completed:\n" + "\n".join(f"  [DONE] {log}" for _, log in stages)
     
