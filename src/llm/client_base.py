@@ -401,6 +401,10 @@ class ClientBase(AIClient):
                     elif last_finish_reason:
                         logger.debug(f"LLM stream ended: {chunk_count} chunks, finish_reason={last_finish_reason}")
 
+                    # Signal if response was truncated (hit max_tokens)
+                    if last_finish_reason == "length":
+                        yield ("truncated", True)
+
                     # After streaming completes, yield any accumulated tool calls
                     if accumulated_tool_calls:
                         tool_calls_list = [accumulated_tool_calls[i] for i in sorted(accumulated_tool_calls.keys())]

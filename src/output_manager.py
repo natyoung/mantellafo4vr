@@ -280,6 +280,8 @@ class ChatManager:
                                     content = item_data
                                     raw_response += content
                                     accumulator.accumulate(content)
+                                elif item_type == "truncated":
+                                    settings.was_truncated = True
                                 elif item_type == "tool_calls":
                                     # Collect tool calls
                                     collected_tool_calls = item_data
@@ -423,6 +425,14 @@ class ChatManager:
                             logger.log(23, f"Starting retry {retries}/{max_retries} for {active_character.name}...")
                             continue
                         
+                        # If response was truncated, append "should I go on?" prompt
+                        if settings.was_truncated and has_text_response:
+                            logger.info(f"Response truncated for {active_character.name}, adding continuation prompt")
+                            continuation_text = "...should I go on?"
+                            raw_response += " " + continuation_text
+                            continuation = self.generate_sentence(SentenceContent(active_character, continuation_text, SentenceTypeEnum.SPEECH, True))
+                            blocking_queue.put(continuation)
+
                         break  # Got text response or hit an error, exit loop
                                 
                     except Exception as e:

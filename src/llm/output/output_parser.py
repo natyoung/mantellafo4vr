@@ -20,6 +20,7 @@ class sentence_generation_settings:
         self.__stop_generation: bool = False
         self.__interrupting_action: bool = False
         self.__vision_requested: bool = False
+        self.__was_truncated: bool = False
     
     @property
     def sentence_type(self) -> SentenceTypeEnum:
@@ -76,6 +77,14 @@ class sentence_generation_settings:
     @vision_requested.setter
     def vision_requested(self, vision_requested: bool):
         self.__vision_requested = vision_requested
+
+    @property
+    def was_truncated(self) -> bool:
+        return self.__was_truncated
+
+    @was_truncated.setter
+    def was_truncated(self, was_truncated: bool):
+        self.__was_truncated = was_truncated
 
 class output_parser(ABC):
     def __init__(self) -> None:
