@@ -159,4 +159,4 @@ class STTDefinitions:
     @staticmethod
     def get_silence_auto_response_message_config_value() -> ConfigValue:
         description = """The message sent to the AI when the player is silent. This should be a natural-sounding instruction rather than literal text like '...' which NPCs may comment on."""
-        return ConfigValueString("silence_auto_response_message", "Silence Message", description, "*says nothing*", tags=[ConfigValueTag.advanced])
+        return ConfigValueString("silence_auto_response_message", "Silence Message", description, "(A moment of silence passes. Share a thought, observation, memory, or comment about your surroundings.)", tags=[ConfigValueTag.advanced])
