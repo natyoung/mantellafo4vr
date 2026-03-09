@@ -1,7 +1,6 @@
 from typing import Any, Hashable
 from src.conversation.action import Action
 from src.http.communication_constants import communication_constants
-from src.conversation.conversation_log import conversation_log
 from src.characters_manager import Characters
 from src.remember.remembering import Remembering
 from src import utils
@@ -703,9 +702,10 @@ class Context:
         Returns:
             str: a natural text representing the trust
         """
-        # BUG: this measure includes radiant conversations, 
-        # so "trust" is accidentally increased even when an NPC hasn't spoken with the player
-        trust_level = conversation_log.get_conversation_log_length(npc, self.__world_id)
+        trust_level = 0
+        if self.__conversation_db:
+            base_name = utils.remove_trailing_number(npc.name)
+            trust_level = self.__conversation_db.get_message_count(self.__world_id, base_name, npc.ref_id)
         trust = 'a stranger'
         if npc.relationship_rank == 0:
             if trust_level < 1:
