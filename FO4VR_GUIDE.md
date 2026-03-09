@@ -58,6 +58,29 @@ Vision also fires automatically if you stay silent for 2 minutes (silence auto-r
 
 With `custom_vision_model = True`, a separate cheaper model describes the screenshot as text before passing it to the main LLM. This works with any NPC model, even ones that don't support images. With `custom_vision_model = False`, the screenshot goes directly to the main LLM (requires a vision-capable model).
 
+## Quest Awareness
+
+NPCs are aware of quests they're involved in. When you talk to an NPC, Mantella checks which quests are associated with them and their current status (running, completed, etc.).
+
+### How it works
+
+1. **Papyrus** sends quest FormIDs for each NPC in the conversation
+2. **The game** checks each quest's current stage and sends back status info
+3. **Mantella** enriches this with detailed quest descriptions from a wiki database (walkthrough text, stage descriptions, locations)
+4. **The LLM** receives this as context, so NPCs can reference quests naturally in conversation
+
+For example, if you've completed "Benign Intervention" with Cait, she knows about her recovery and can reference it. If you're mid-way through "The First Step" with Preston, he knows what stage you're at.
+
+### Wiki database
+
+Quest details come from `data/Fallout4/wiki.db` — a SQLite database with 889 characters, 299 quests, and 44,892 wiki pages scraped from the Fallout wiki. This ships with the mod and doesn't need any setup.
+
+To regenerate the database (only needed if you want to update it):
+```
+pip install mediawiki-dump wikitextparser
+python -m src.wiki.dump_parser --full
+```
+
 ## Generic NPC Identity System
 
 In vanilla Fallout 4, settlement NPCs all share generic names like "Settler" or "Resident". Mantella gives each one a unique persistent identity:
