@@ -58,6 +58,26 @@ Vision also fires automatically if you stay silent for 2 minutes (silence auto-r
 
 With `custom_vision_model = True`, a separate cheaper model describes the screenshot as text before passing it to the main LLM. This works with any NPC model, even ones that don't support images. With `custom_vision_model = False`, the screenshot goes directly to the main LLM (requires a vision-capable model).
 
+## Generic NPC Identity System
+
+In vanilla Fallout 4, settlement NPCs all share generic names like "Settler" or "Resident". Mantella gives each one a unique persistent identity:
+
+- **Unique name** — drawn from a pool of ~250 lore-appropriate Wasteland names (male and female)
+- **Unique voice** — assigned from 50 dedicated TTS voices (`rand_f01`–`rand_f25` for female, `rand_m01`–`rand_m25` for male)
+- **Unique bio** — assembled from personality traits, occupations, and backstory fragments (e.g. *"Eloise Kraft is a quiet and observant human wastelander. She spends most days teaching younger settlers. Eloise Kraft left Diamond City because she couldn't afford to stay."*)
+
+Identities are **persistent** — the same settler always has the same name, voice, and personality across sessions. The registry is stored in `Documents\My Games\Mantella\generic_npc_registry.json`, keyed by the NPC's unique reference ID.
+
+### Which NPCs get identities?
+
+Any NPC with one of these generic game names: Settler, Resident, Scavenger, Provisioner, Caravan Guard, Trader, Merchant, Farmer, Guard, Minuteman, Militia, Refugee, Wastelander, Drifter, Traveler.
+
+Named NPCs (Cait, Preston, etc.) are unaffected — they keep their original names and use their configured voice.
+
+### Voice setup
+
+The 50 `rand_*` voices need to be set up on your TTS server with voice latents/samples. If a voice isn't available, the TTS will fall back to a default. The more voices you set up, the more variety your settlers will have.
+
 ## Per-NPC Model Overrides
 
 You can assign different LLMs to different NPCs via `data/npc_model_overrides.json`:
