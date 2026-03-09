@@ -7,7 +7,6 @@ from src.llm.sentence_content import SentenceTypeEnum, SentenceContent
 from opentelemetry import context as OpenTelemetryContext
 from src.telemetry.telemetry import set_parent_context
 from src.characters_manager import Characters
-from src.conversation.conversation_log import conversation_log
 from src.conversation.action import Action
 from src.llm.sentence_queue import SentenceQueue
 from src.llm.sentence import Sentence
@@ -453,9 +452,10 @@ class Conversation:
             new_message.is_system_generated_message = True # Flag message containing goodbye as a system message to exclude from summary
             self.initiate_end_sequence()
         else:
-            # Enable vision on silence timeout so NPC can comment on what they see
-            if is_silence_timeout and self.__llm_client and self.__context.config.vision_enabled:
-                self.__llm_client.enable_vision_for_next_call()
+            # Enable vision on silence timeout or player request
+            if self.__llm_client and self.__context.config.vision_enabled:
+                if is_silence_timeout or self.__is_vision_request(text):
+                    self.__llm_client.enable_vision_for_next_call()
             self.__start_generating_npc_sentences()
         self.__persist_new_messages()  # Persist after flags are set (goodbye, summary recall, etc.)
 
@@ -941,7 +941,7 @@ class Conversation:
         for npc in characters_to_save_for:
             characters_object.add_or_update_character(npc)
             if not npc.is_player_character:
-                conversation_log.save_conversation_log(npc, self.__messages.transform_to_openai_messages(self.__messages.get_talk_only()), self.__context.world_id)
+                pass  # Messages already saved to DB via save_message() during conversation
         
         # Get and clear pending shares (only on final save, not reload)
         pending_shares = None
@@ -991,6 +991,14 @@ class Conversation:
 
         # check if user is ending conversation
         return Transcriber.activation_name_exists(transcript_cleaned, self.__end_conversation_keywords)
+
+    _VISION_PHRASES = ["look at this", "look at that", "check this out", "see this", "see that",
+                       "what do you see", "what can you see", "take a look", "have a look"]
+
+    def __is_vision_request(self, text: str) -> bool:
+        """Check if the player is asking the NPC to look at something."""
+        text_lower = text.lower()
+        return any(phrase in text_lower for phrase in self._VISION_PHRASES)
 
     @utils.time_it
     def __does_dismiss_npc_from_conversation(self, last_user_text: str) -> Character | None:
