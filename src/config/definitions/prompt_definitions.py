@@ -250,8 +250,7 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
     @staticmethod
     def get_vision_prompt_config_value() -> ConfigValue:
         vision_prompt_description = """The prompt passed to the vision-capable LLM when `Custom Vision Model` is enabled."""
-        vision_prompt = """This image is to give context and is from the player's point of view in the game of {game}. 
-                            Describe the details visible inside it without mentioning the game. Refer to it as a scene instead of an image."""
+        vision_prompt = """This image is the player's point of view in {game}. Describe only the environment, objects, and characters visible in the scene. Ignore any HUD elements (gauges, dials, compass, health bars, text overlays, notifications) — those are game UI, not part of the world. Do not mention the game or that this is an image. Be brief (1-2 sentences)."""
         return ConfigValueString("vision_prompt","Vision Prompt",vision_prompt_description,vision_prompt)
     
     @staticmethod
