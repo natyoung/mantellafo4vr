@@ -22,6 +22,9 @@ Mantella has two halves that talk over HTTP on `localhost:4999`:
 | Python | `src/output_manager.py` | ChatManager — LLM streaming, sentence parsing, TTS calls |
 | Python | `src/llm/sentence_queue.py` | Thread-safe producer/consumer queue between generation and HTTP threads |
 | Python | `src/stt.py` | Transcriber — mic capture, VAD (Silero), Whisper transcription |
+| Python | `src/conversation/conversation_db.py` | SQLite conversation storage — messages on the fly, summaries, orphan recovery |
+| Python | `src/generic_npc_registry.py` | Persistent identity assignment for generic settlement NPCs |
+| Python | `src/llm/client_base.py` | LLM client — streaming, vision modes, screenshot handling |
 
 ---
 
@@ -295,6 +298,56 @@ Meanwhile, the game's `continue_conversation` HTTP request is **blocked** in `Se
 **Removing**: Removes from FormList, stops following, removes from all function factions. If < 2 participants remain, ends conversation. Otherwise reassigns AI packages.
 
 **Speaker resolution**: Python sends speaker name → `GetActorInConversation()` matches against all Participants using `GetActorName()` (includes duplicate suffix).
+
+### Generic NPC Identity System
+
+Settlement NPCs with generic game names ("Settler", "Resident", etc.) get persistent unique identities via `src/generic_npc_registry.py`.
+
+**Flow**: `Fallout4.load_external_character_info()` → checks if name is in `GENERIC_NPC_NAMES` set → `GenericNPCRegistry.get_or_create()` → returns `GenericNPCIdentity` (name, bio, voice_model).
+
+**Identity assignment**: Uses SHA-256 hash of `ref_id` for deterministic, stable assignment:
+- **Name**: picked from ~100 male + ~100 female lore-appropriate name pools
+- **Voice**: assigned from `rand_f01`–`rand_f25` / `rand_m01`–`rand_m25`
+- **Bio**: assembled from personality trait + occupation + backstory fragment templates
+
+**Persistence**: JSON registry at `{save_folder}/generic_npc_registry.json`, keyed by NPC reference ID. Same settler always gets the same identity across sessions.
+
+**Name handling**: `Character.game_name` preserves the original name ("Settler") for Papyrus communication. `Character.prompt_name` holds the assigned name for LLM context. Papyrus always sees the original game name so actor matching works.
+
+---
+
+## Vision System
+
+NPCs can "see" the player's screen via screenshot capture, processed by an LLM.
+
+### Vision Modes
+
+Determined by `src/llm/client_base.py:_determine_vision_mode()`:
+
+| Mode | Condition | Behavior |
+|---|---|---|
+| `DISABLED` | `vision_enabled = False` | No vision |
+| `ON_DEMAND` | Vision action in `allowed_games` for this game | Vision fires only when triggered |
+| `ALWAYS_ON` | `vision_enabled = True` but game not in `allowed_games` | Screenshot sent every turn |
+
+FO4VR uses `ON_DEMAND` (set in `data/actions/vision.json`).
+
+### Triggers (ON_DEMAND)
+
+1. **Speech-triggered**: Player says "look at this", "check this out", etc. → `conversation.py:__is_vision_request()` detects phrase → `enable_vision_for_next_call()`
+2. **Silence timeout**: Player stays silent → auto-response fires with vision enabled → NPC comments on surroundings
+3. **NPC action**: LLM outputs vision tool action → `output_manager.py` intercepts → `enable_vision_for_next_call()`
+
+### Processing Modes
+
+| Config | Flow |
+|---|---|
+| `custom_vision_model = True` | Screenshot → separate vision LLM (e.g. Qwen VL) → text description → injected as `Image transcription:` into main LLM prompt |
+| `custom_vision_model = False` | Screenshot → sent directly as image to main NPC LLM (requires vision-capable model) |
+
+### Screenshot Capture
+
+`mss` library captures the game window. For VR, this captures the desktop mirror window (usable but shows HUD elements). Vision prompt instructs the LLM to ignore HUD (gauges, compass, notifications).
 
 ---
 
