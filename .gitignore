@@ -32,3 +32,4 @@ user_folder
 .venv/
 data/Fallout4/wiki.db
 data/Fallout4/wiki/*.xml
+.backup/
