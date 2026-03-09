@@ -1,5 +1,75 @@
 # Mantella for Fallout 4 VR - User Guide
 
+This is a fork of [Mantella](https://github.com/art-from-the-machine/Mantella) (via [slavkovsky77's FO4VR branch](https://github.com/slavkovsky77/Mantella)) with 100+ commits of Fallout 4 VR improvements. It is not affiliated with the upstream project.
+
+## What This Fork Adds
+
+### Stability & Threading (core fixes)
+- Fixed SentenceQueue deadlock between `clear()` and `get_next_sentence()`
+- Fixed stale generation threads preventing new LLM responses
+- Fixed race conditions in `__update_context`, `load_character()`, `player_input()`
+- Fixed concurrent `start_conversation` requests stacking and corrupting state
+- Fixed server deadlock when remote TTS is unreachable on startup
+- Added timeouts to all external calls to prevent permanent hangs
+- Added `asyncio.to_thread()` for blocking route handlers to unblock the event loop
+- Fixed topicID race condition causing duplicate audio in multi-NPC conversations
+- Debounced `start_conversation` to prevent rapid-fire restarts from Papyrus
+
+### FO4VR-Specific Fixes
+- Fixed voice delivery pipeline (FUZ generation and file copy)
+- Fixed stale F4SE_HTTP queue killing new conversations
+- Fixed stale STT/TTS responses leaking between conversations
+- Forced topicID alternation to prevent FO4's aggressive audio caching
+- Skip action-only responses (Papyrus can't handle them in FO4VR)
+- Removed `fo4_` voice prefix that caused XTTS 500 errors
+- Guarded `onnxruntime` import against DLL load failures (VR environment)
+
+### Generic NPC Identity System (new feature)
+- Settlers, Residents, Scavengers, etc. get persistent unique names, voices, and bios
+- ~250 lore-appropriate Wasteland names, 50 dedicated TTS voices (`rand_f01`–`rand_f25`, `rand_m01`–`rand_m25`)
+- Bios assembled from personality traits, occupations, and backstory fragments
+- Identities persist across sessions via JSON registry keyed by reference ID
+- Original game name preserved for Papyrus communication; assigned name used for LLM
+
+### Quest Awareness (new feature)
+- Full pipeline: Papyrus sends quest FormIDs → game checks stages → Mantella enriches from wiki database → LLM receives quest context
+- NPCs know which quests they're involved in, current status, and stage details
+- Wiki database with 889 characters, 299 quests, 44,892 pages from Fallout wiki
+
+### Vision System (enhanced)
+- Enabled vision action for Fallout 4 (ON_DEMAND mode — not every turn)
+- Speech-triggered vision: say "look at this", "check this out", etc.
+- Vision fires on silence timeout so NPCs comment on surroundings
+- Improved vision prompt to ignore HUD elements (power armor dials, compass, notifications)
+- Fixed crash when vision LLM call fails (`UnboundLocalError` on `async_client`)
+
+### Conversation Memory (enhanced)
+- SQLite-based conversation storage (messages saved on the fly, not just at conversation end)
+- Removed redundant JSON file writes — DB is the single source of truth
+- First-person NPC memory prompts ("I remember..." not "The assistant summarized...")
+- "Days since last spoke" injected into NPC context (only after 7+ in-game days)
+- Summary recall: player says "summary" or "recap" to hear past interactions
+- Orphaned conversation recovery (auto-summarizes if game crashed mid-conversation)
+- Memory paraphrasing instruction so NPCs don't read summaries back verbatim
+
+### Silence Auto-Response (enhanced)
+- Fixed race condition where events refresh prevented timeout from ever firing
+- Changed prompt from literal `*says nothing*` to natural NPC dialogue prompt
+- Coupled with vision system — NPC describes surroundings when player is silent
+
+### LLM Improvements
+- Per-NPC model overrides via `data/npc_model_overrides.json`
+- Truncation detection: appends "...should I go on?" when response hits max tokens
+- Better event filtering: debounce location spam, filter sit/stand, equip spam, mod spell hits
+- Disabled loot/deposit/workshop events that derailed conversations
+- Angle brackets as narration indicators for LLM emote stripping
+- Whisper STT prompt includes all NPC names (not just first) + companion name corrections
+
+### Documentation & Tooling
+- FO4VR user guide, architecture docs, improvement roadmap
+- Startup/shutdown convenience scripts
+- LLM debug logging per conversation folder
+
 ## Quick Start
 
 1. **Launch Mantella** before starting FO4VR:
