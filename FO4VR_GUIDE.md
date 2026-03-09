@@ -43,6 +43,34 @@ You can also add custom end keywords in your config (see Settings below).
 
 No buttons needed during conversation — it's fully voice-driven in VR.
 
+## Vision
+
+When `vision_enabled = True` in config, NPCs can "see" what's on screen via a screenshot sent to the LLM.
+
+**Trigger phrases** — say any of these to make the NPC look:
+- "look at this" / "look at that"
+- "check this out"
+- "see this" / "see that"
+- "what do you see" / "what can you see"
+- "take a look" / "have a look"
+
+Vision also fires automatically if you stay silent for 2 minutes (silence auto-response). The NPC will comment on their surroundings.
+
+With `custom_vision_model = True`, a separate cheaper model describes the screenshot as text before passing it to the main LLM. With `custom_vision_model = False`, the screenshot goes directly to the main LLM (requires a vision-capable model a vision-capable model).
+
+## Per-NPC Model Overrides
+
+You can assign different LLMs to different NPCs via `data/npc_model_overrides.json`:
+
+```json
+{
+  "_example_Nick Valentine": "anthropic/claude-sonnet-4"
+  
+}
+```
+
+NPCs not listed use the global model from config.ini.
+
 ## Settings
 
 Config file: `C:\Users\<user>\Documents\My Games\Mantella\config.ini`
@@ -57,6 +85,8 @@ You can also access settings in-game via the **Mantella Settings Holotape** in y
 | `allow_interruption` | True | Whether you can interrupt NPCs mid-sentence |
 | `silence_auto_response_enabled` | False | If True, NPC talks again if you're silent too long |
 | `silence_auto_response_timeout` | 30.0 | Seconds of silence before auto-response triggers |
+| `vision_enabled` | False | If True, NPCs can see screenshots when triggered |
+| `custom_vision_model` | False | Use a separate vision LLM instead of the main one |
 | `end_conversation_keyword` | goodbye, bye... | Words that end the conversation |
 | `goodbye_npc_response` | Safe travels | What the NPC says when you leave |
 
