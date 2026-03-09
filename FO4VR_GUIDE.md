@@ -72,14 +72,19 @@ This is a fork of [Mantella](https://github.com/art-from-the-machine/Mantella) (
 
 ## Quick Start
 
-1. **Launch Mantella** before starting FO4VR:
+1. **First-time setup** — generate the wiki database (one-time, takes a few minutes):
    ```
    cd <your Mantella folder>
    .venv\Scripts\activate
+   pip install mediawiki-dump wikitextparser
+   python -m src.wiki.dump_parser --full
+   ```
+2. **Launch Mantella** before starting FO4VR:
+   ```
    python main.py
    ```
-2. **Launch Fallout 4 VR** (with MantellaMod installed via your mod manager)
-3. **In-game**: Look at an NPC and press the **grip trigger** to start talking
+3. **Launch Fallout 4 VR** (with MantellaMod installed via your mod manager)
+4. **In-game**: Look at an NPC and press the **grip trigger** to start talking
 
 ## Starting a Conversation
 
@@ -143,13 +148,14 @@ For example, if you've completed "Benign Intervention" with Cait, she knows abou
 
 ### Wiki database
 
-Quest details come from `data/Fallout4/wiki.db` — a SQLite database with 889 characters, 299 quests, and 44,892 wiki pages scraped from the Fallout wiki. This ships with the mod and doesn't need any setup.
+Quest details come from `data/Fallout4/wiki.db` — a SQLite database with 889 characters, 299 quests, and 44,892 wiki pages scraped from the Fallout wiki. This file is too large for git (266MB) and must be generated on first install:
 
-To regenerate the database (only needed if you want to update it):
 ```
 pip install mediawiki-dump wikitextparser
 python -m src.wiki.dump_parser --full
 ```
+
+This downloads the Fallout wiki dump and builds the database. It takes a few minutes and only needs to be done once. Without it, NPCs still know quest names and status but won't have detailed walkthrough context.
 
 ## Generic NPC Identity System
 
