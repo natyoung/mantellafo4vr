@@ -56,7 +56,7 @@ When `vision_enabled = True` in config, NPCs can "see" what's on screen via a sc
 
 Vision also fires automatically if you stay silent for 2 minutes (silence auto-response). The NPC will comment on their surroundings.
 
-With `custom_vision_model = True`, a separate cheaper model describes the screenshot as text before passing it to the main LLM. With `custom_vision_model = False`, the screenshot goes directly to the main LLM (requires a vision-capable model a vision-capable model).
+With `custom_vision_model = True`, a separate cheaper model describes the screenshot as text before passing it to the main LLM. This works with any NPC model, even ones that don't support images. With `custom_vision_model = False`, the screenshot goes directly to the main LLM (requires a vision-capable model).
 
 ## Per-NPC Model Overrides
 
@@ -73,7 +73,7 @@ NPCs not listed use the global model from config.ini.
 
 ## Settings
 
-Config file: `C:\Users\<user>\Documents\My Games\Mantella\config.ini`
+Config file: `Documents\My Games\Mantella\config.ini`
 
 You can also access settings in-game via the **Mantella Settings Holotape** in your inventory.
 
