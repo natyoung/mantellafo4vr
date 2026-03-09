@@ -70,21 +70,62 @@ This is a fork of [Mantella](https://github.com/art-from-the-machine/Mantella) (
 - Startup/shutdown convenience scripts
 - LLM debug logging per conversation folder
 
+## Prerequisites
+
+This fork has two components — the **Python software** (this repo) and the **game mod** (Mantella Mod).
+
+### Game Mod (Mantella Mod)
+
+Install the [Mantella Mod](https://www.nexusmods.com/fallout4/mods/79747) from Nexus Mods using your mod manager (MO2 or Vortex). This provides:
+- `Mantella.esp` — the plugin with quests, spells, and settings holotape
+- F4SE plugins — `F4SE_HTTP.dll` (HTTP communication) and `TopicInfoPatcher.dll` (in-engine dialogue)
+- Compiled Papyrus scripts — the game-side conversation logic
+
+You also need [F4SE](https://f4se.silverlock.org/) (or F4SEVR for VR) installed.
+
+### Modified Papyrus Scripts (this fork)
+
+This fork includes 5 modified Papyrus scripts in the `papyrus/` folder that add quest awareness, VR polling fixes, and other improvements. These **replace** the scripts from the Nexus mod:
+
+- `MantellaConstants.psc` — added quest data HTTP keys
+- `MantellaConversation.psc` — quest stage checking, VR-specific fixes
+- `MantellaEffectScript.psc` — conversation start hardening
+- `MantellaListenerScript.psc` — event filtering improvements
+- `MantellaRepository.psc` — vision and function calling additions
+
+To use them, compile with the Papyrus compiler and copy the `.pex` output into your MantellaMod's `Scripts/` folder, overriding the originals. Pre-compiled `.pex` files are not included — you need the Creation Kit or standalone compiler.
+
+### TTS Server
+
+You need a TTS server running. This fork is designed for [XTTS](https://github.com/daswer123/xtts-api-server) but also supports Piper and XVASynth. See `VOICE_LATENT_SETUP.md` for how to set up voice samples.
+
+### LLM Provider
+
+An API key for your LLM provider (OpenAI, OpenRouter, or a local server). Set in `GPT_SECRET_KEY.txt` and configure the model in `config.ini`.
+
 ## Quick Start
 
-1. **First-time setup** — generate the wiki database (one-time, takes a few minutes):
+1. **Install the game mod** — Mantella Mod from Nexus + F4SE (see Prerequisites above)
+2. **Clone this repo** and set up the Python environment:
    ```
-   cd <your Mantella folder>
+   git clone https://github.com/natyoung/mantella_fo4vr.git
+   cd mantella_fo4vr
+   python -m venv .venv
    .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+3. **Create `GPT_SECRET_KEY.txt`** in the repo root with your LLM API key
+4. **Generate the wiki database** (one-time, takes a few minutes):
+   ```
    pip install mediawiki-dump wikitextparser
    python -m src.wiki.dump_parser --full
    ```
-2. **Launch Mantella** before starting FO4VR:
+5. **Launch Mantella** before starting FO4VR:
    ```
    python main.py
    ```
-3. **Launch Fallout 4 VR** (with MantellaMod installed via your mod manager)
-4. **In-game**: Look at an NPC and press the **grip trigger** to start talking
+6. **Launch Fallout 4 VR** (with MantellaMod installed via your mod manager)
+7. **In-game**: Look at an NPC and press the **grip trigger** to start talking
 
 ## Starting a Conversation
 
