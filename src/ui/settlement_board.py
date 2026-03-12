@@ -82,9 +82,9 @@ def _format_game_days(game_days: float) -> str:
     return f"Day {days}, {time_12h} {period}".strip()
 
 
-def _build_board_html(db_path: Path, npc_filter: str = "All") -> str:
-    diary_entries = _read_diary_entries(db_path)
-    summaries = _read_recent_summaries(db_path)
+def _build_board_html(db_path: Path, npc_filter: str = "All", view: str = "Both") -> str:
+    diary_entries = _read_diary_entries(db_path) if view in ("Diary Entries", "Both") else []
+    summaries = _read_recent_summaries(db_path) if view in ("Recent Memories", "Both") else []
 
     if npc_filter and npc_filter != "All":
         diary_entries = [d for d in diary_entries if d["npc_name"] == npc_filter]
@@ -158,24 +158,35 @@ def create_settlement_board(config: ConfigLoader) -> gr.Blocks:
                 label="Filter by NPC",
                 interactive=True,
             )
+            view_dropdown = gr.Dropdown(
+                choices=["Both", "Diary Entries", "Recent Memories"],
+                value="Both",
+                label="Show",
+                interactive=True,
+            )
             refresh_btn = gr.Button("Refresh", size="sm")
 
         board_html = gr.HTML(value=_build_board_html(db_path))
 
-        def update_board(npc_filter):
+        def update_board(npc_filter, view):
             fresh_db_path = _get_db_path(config)
             npcs = ["All"] + _get_npc_list(fresh_db_path)
-            html = _build_board_html(fresh_db_path, npc_filter)
+            html = _build_board_html(fresh_db_path, npc_filter, view)
             return gr.update(choices=npcs, value=npc_filter), html
 
         npc_dropdown.change(
             fn=update_board,
-            inputs=[npc_dropdown],
+            inputs=[npc_dropdown, view_dropdown],
+            outputs=[npc_dropdown, board_html],
+        )
+        view_dropdown.change(
+            fn=update_board,
+            inputs=[npc_dropdown, view_dropdown],
             outputs=[npc_dropdown, board_html],
         )
         refresh_btn.click(
             fn=update_board,
-            inputs=[npc_dropdown],
+            inputs=[npc_dropdown, view_dropdown],
             outputs=[npc_dropdown, board_html],
         )
 
