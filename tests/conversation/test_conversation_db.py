@@ -246,6 +246,61 @@ class TestMigration:
         db2.close()
 
 
+class TestDiaryEntries:
+    def test_creates_diary_entries_table(self, db: ConversationDB):
+        cur = db.conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = {row[0] for row in cur.fetchall()}
+        assert "diary_entries" in tables
+
+    def test_save_and_get_diary_entries(self, db: ConversationDB):
+        db.save_diary_entry("world1", "Preston", "00ABC", "Dear diary, the player helped me today.",
+                           game_days_from=35.0, game_days_to=42.0, summaries_from_ts=100.0, summaries_to_ts=500.0)
+        entries = db.get_all_diary_entries("world1", "Preston", "00ABC")
+        assert len(entries) == 1
+        assert entries[0]["content"] == "Dear diary, the player helped me today."
+        assert entries[0]["game_days_from"] == 35.0
+        assert entries[0]["game_days_to"] == 42.0
+
+    def test_get_latest_diary_game_days(self, db: ConversationDB):
+        db.save_diary_entry("world1", "Preston", "00ABC", "First week.",
+                           game_days_from=1.0, game_days_to=7.0, summaries_from_ts=100.0, summaries_to_ts=200.0)
+        db.save_diary_entry("world1", "Preston", "00ABC", "Second week.",
+                           game_days_from=7.0, game_days_to=14.0, summaries_from_ts=200.0, summaries_to_ts=300.0)
+        latest = db.get_latest_diary_game_days("world1", "Preston", "00ABC")
+        assert latest == 14.0
+
+    def test_get_latest_diary_game_days_returns_none_when_empty(self, db: ConversationDB):
+        latest = db.get_latest_diary_game_days("world1", "Preston", "00ABC")
+        assert latest is None
+
+    def test_delete_summaries_before_ts(self, db: ConversationDB):
+        db.save_summary("world1", "Preston", "00ABC", "Old summary.", 100.0, 200.0)
+        db.save_summary("world1", "Preston", "00ABC", "Recent summary.", 200.0, 300.0)
+        db.delete_summaries_before_ts("world1", "Preston", "00ABC", 250.0)
+        remaining = db.get_all_summaries("world1", "Preston", "00ABC")
+        assert len(remaining) == 1
+        assert remaining[0]["content"] == "Recent summary."
+
+    def test_diary_entries_scoped_by_npc(self, db: ConversationDB):
+        db.save_diary_entry("world1", "Preston", "00ABC", "Preston diary.",
+                           game_days_from=1.0, game_days_to=7.0, summaries_from_ts=100.0, summaries_to_ts=200.0)
+        db.save_diary_entry("world1", "Piper", "00DEF", "Piper diary.",
+                           game_days_from=1.0, game_days_to=7.0, summaries_from_ts=100.0, summaries_to_ts=200.0)
+        assert len(db.get_all_diary_entries("world1", "Preston", "00ABC")) == 1
+        assert len(db.get_all_diary_entries("world1", "Piper", "00DEF")) == 1
+
+    def test_multiple_diary_entries_ordered_by_game_days(self, db: ConversationDB):
+        db.save_diary_entry("world1", "Preston", "00ABC", "Second.",
+                           game_days_from=7.0, game_days_to=14.0, summaries_from_ts=200.0, summaries_to_ts=300.0)
+        db.save_diary_entry("world1", "Preston", "00ABC", "First.",
+                           game_days_from=1.0, game_days_to=7.0, summaries_from_ts=100.0, summaries_to_ts=200.0)
+        entries = db.get_all_diary_entries("world1", "Preston", "00ABC")
+        assert len(entries) == 2
+        assert entries[0]["content"] == "First."
+        assert entries[1]["content"] == "Second."
+
+
 class TestClose:
     def test_close_and_reopen(self, tmp_path: Path):
         db_path = tmp_path / "test.db"
