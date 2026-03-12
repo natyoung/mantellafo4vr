@@ -31,6 +31,7 @@ bool property hideVisionMenu auto Conditional
 bool property allowVision auto Conditional
 bool property allowVisionHints auto Conditional
 bool property hasPendingVisionCheck auto
+bool isInWorkshopMode = false
 string property visionResolution auto
 int property visionResize auto Conditional
 String property ActorsInCellArray auto
@@ -164,6 +165,7 @@ Function reloadKeys()
     setHotkey(startConversationkeycode,"StartConversation")
     setHotkey(textAndVisionKeycode,"DialogueAndVision")
     setHotkey(MantellaVisionKeycode,"MantellaVision")
+    RegisterForMenuOpenCloseEvent("WorkshopMenu")
     conversation.RestoreSettings()                              ; Make sure Game settings are restored after a load
 Endfunction
 
@@ -546,6 +548,10 @@ Function listMenuState(String aMenu)
 EndFunction
 
 Event OnMenuOpenCloseEvent(string asMenuName, bool abOpening)
+    if asMenuName == "WorkshopMenu"
+        isInWorkshopMode = abOpening
+        return
+    endif
     if (asMenuName== "PipboyMenu") && MenuEventSelector==1 && !abOpening ;This triggers if the player chooses to change the text input hotkey
 	    OpenHotkeyPrompt("playerInputTextHotkey")
     elseif (asMenuName== "PipboyMenu") && MenuEventSelector==2 && !abOpening ;This triggers if the player chooses to stop all conversations
@@ -777,11 +783,14 @@ EndFunction
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 Function GenerateMantellaVision()
+    if isInWorkshopMode
+        return
+    endif
     hasPendingVisionCheck=true
-    TopicInfoPatcher.TakeScreenShot("Mantella_Vision.jpg", 0) 
+    TopicInfoPatcher.TakeScreenShot("Mantella_Vision.jpg", 0)
     if allowVisionHints
         ScanCellForActorsFilteredLOS()
-    endif   
+    endif
 EndFunction
 
 bool Function checkAndUpdateVisionPipeline()
