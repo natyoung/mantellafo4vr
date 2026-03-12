@@ -299,8 +299,9 @@ String lastAggressor = ""
 Int timesHitSameAggressorSource = 0
 Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource, Projectile akProjectile, bool abPowerAttack, bool abSneakAttack, bool abBashAttack, bool abHitBlocked, string apMaterial)
     if repository.targetTrackingOnHit
-         ; Skip player-on-companion hits (produces false positives in VR)
-         if akAggressor == Game.GetPlayer() && self.GetTargetActor().IsPlayerTeammate()
+         ; Skip player-on-friendly hits (VR produces many false positives from
+         ; laser sights, physics bumps, and accidental crosshair triggers)
+         if akAggressor == Game.GetPlayer() && !self.GetTargetActor().IsHostileToActor(Game.GetPlayer())
              RegisterForHitEvent(self.GetTargetActor())
              return
          endif
