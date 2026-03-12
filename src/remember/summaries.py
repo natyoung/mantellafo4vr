@@ -78,12 +78,13 @@ class Summaries(Remembering):
 
     @utils.time_it
     def save_conversation_state(self, messages: message_thread, npcs_in_conversation: Characters, world_id: str, is_reload=False, pending_shares: list[tuple[str, str, str]] | None = None, end_timestamp: float | None = None):
-        summary = ''
-
+        # Generate a separate summary for each NPC from their own perspective
+        first_summary = ''
         for npc in npcs_in_conversation.get_all_characters():
             if not npc.is_player_character:
-                if len(summary) < 1:
-                    summary = self.__create_new_conversation_summary(messages, npc.name, end_timestamp)
+                summary = self.__create_new_conversation_summary(messages, npc.name, end_timestamp)
+                if not first_summary and summary:
+                    first_summary = summary
                 if len(summary) > 0:
                     base_name = utils.remove_trailing_number(npc.name)
                     from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, npc.ref_id) or 0.0
@@ -91,8 +92,8 @@ class Summaries(Remembering):
                     self.__db.save_summary(world_id, base_name, npc.ref_id, summary, from_ts, to_ts)
                     self.__check_db_summary_overflow(world_id, base_name, npc.ref_id, npc.name)
 
-        # Handle pending shares
-        if pending_shares and len(summary) > 0:
+        # Handle pending shares (use first NPC's summary as the shared version)
+        if pending_shares and len(first_summary) > 0:
             for sharer_name, recipient_name, recipient_ref_id in pending_shares:
                 participant_names = []
                 for npc in npcs_in_conversation.get_all_characters():
@@ -104,7 +105,7 @@ class Summaries(Remembering):
                         participant_names.append(npc.name)
 
                 participants_text = ", ".join(participant_names) if participant_names else "others"
-                prefixed_summary = f"{sharer_name} shared with {recipient_name} a conversation with {participants_text}:\n{summary}"
+                prefixed_summary = f"{sharer_name} shared with {recipient_name} a conversation with {participants_text}:\n{first_summary}"
 
                 base_recipient = utils.remove_trailing_number(recipient_name)
                 from_ts = self.__db.get_latest_summary_to_ts(world_id, base_recipient, recipient_ref_id) or 0.0
