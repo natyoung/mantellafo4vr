@@ -630,7 +630,14 @@ class Context:
                 self.__prev_nearby_npc_names = nearby_names
 
         if custom_ingame_events:
-            self.__ingame_events.extend(custom_ingame_events)
+            # Filter out noise events that are just game mechanics
+            _NOISE_KEYWORDS = ['power armor', 't-45', 't-51', 't-60', 'x-01', 'raider power',
+                               'fusion core', 'power armor frame']
+            for event in custom_ingame_events:
+                event_lower = event.lower()
+                if any(kw in event_lower for kw in _NOISE_KEYWORDS):
+                    continue
+                self.__ingame_events.append(event)
 
         if config_settings:
             self.__config_settings = config_settings
