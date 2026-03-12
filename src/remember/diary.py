@@ -62,7 +62,8 @@ class DiaryConsolidator:
         )
         thread = message_thread(self.__config, prompt)
         thread.add_message(UserMessage(self.__config, combined_text))
-        diary_content = self.__client.request_call(thread)
+        with self.__client.override_params(max_tokens=1500):
+            diary_content = self.__client.request_call(thread)
 
         if not diary_content:
             logger.warning(f"Diary consolidation failed for {npc_name} — LLM returned empty response")
