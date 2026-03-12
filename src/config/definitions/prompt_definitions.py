@@ -248,6 +248,37 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
         return ConfigValueString("resummarize_prompt","Resummarize Prompt",resummarize_prompt_description,resummarize_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game"])])
     
     @staticmethod
+    def get_diary_prompt_config_value() -> ConfigValue:
+        diary_prompt_description = """The prompt used to consolidate multiple conversation summaries into a diary entry.
+                                     This is part of the hierarchical memory system: summaries are periodically
+                                     consolidated into first-person diary entries, giving NPCs more natural long-term memory.
+                                     Dynamic variables in curly brackets {}:
+                                         name = the NPC's name
+                                         language = the selected language
+                                         game = the game selected"""
+        diary_prompt = """You are {name} in {game}, writing a personal diary entry. Below are your recent memories (conversation summaries).
+Consolidate them into a single diary entry written in first person, in your own voice and personality.
+Capture key events, relationships, and your emotional reactions. Refer to the player as "the player" (never by name).
+Write naturally, as {name} would actually think. Include time references if timestamps are present.
+Keep it concise — one or two paragraphs. Write in {language}."""
+        return ConfigValueString("diary_prompt", "Diary Prompt", diary_prompt_description, diary_prompt,
+                                 [PromptDefinitions.PromptChecker(["name", "language", "game"])])
+
+    @staticmethod
+    def get_diary_interval_days_config_value() -> ConfigValue:
+        description = """How many in-game days must pass before conversation summaries are consolidated into a diary entry.
+                        The NPC must also have at least 3 unconsolidated summaries. This is part of the hierarchical
+                        memory system: recent memories stay detailed, older ones get compressed into diary entries."""
+        return ConfigValueInt("diary_interval_days", "Diary Interval (Game Days)", description, 7, 1, 365)
+
+    @staticmethod
+    def get_diary_min_summaries_config_value() -> ConfigValue:
+        description = """Minimum number of unconsolidated summaries required before a diary entry is created.
+                        Even if enough game days have passed, diary consolidation is skipped if
+                        the NPC hasn't accumulated enough conversation memories."""
+        return ConfigValueInt("diary_min_summaries", "Diary Min Summaries", description, 3, 2, 50)
+
+    @staticmethod
     def get_vision_prompt_config_value() -> ConfigValue:
         vision_prompt_description = """The prompt passed to the vision-capable LLM when `Custom Vision Model` is enabled."""
         vision_prompt = """This image is the player's point of view in {game}. Describe only the environment, objects, and characters visible in the scene. Ignore any HUD elements (gauges, dials, compass, health bars, text overlays, notifications) — those are game UI, not part of the world. Do not mention the game or that this is an image. Be brief (1-2 sentences)."""

@@ -309,6 +309,9 @@ LLM parameter list must follow the Python dictionary format: https://www.w3schoo
             self.memory_prompt = self.__definitions.get_string_value("memory_prompt")
             self.memory_prompt_datetime_prefix = self.__definitions.get_bool_value("memory_prompt_datetime_prefix")
             self.resummarize_prompt = self.__definitions.get_string_value("resummarize_prompt")
+            self.diary_prompt = self.__definitions.get_string_value("diary_prompt")
+            self.diary_interval_days = self.__definitions.get_int_value("diary_interval_days")
+            self.diary_min_summaries = self.__definitions.get_int_value("diary_min_summaries")
             self.vision_prompt = self.__definitions.get_string_value("vision_prompt")
             self.function_llm_prompt = self.__definitions.get_string_value("function_llm_prompt")
 
