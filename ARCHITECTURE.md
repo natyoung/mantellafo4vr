@@ -316,6 +316,98 @@ Settlement NPCs with generic game names ("Settler", "Resident", etc.) get persis
 
 ---
 
+## Hierarchical Memory (Memory Consolidation)
+
+NPC memory uses a tiered system inspired by human memory consolidation — recent memories stay detailed, older ones compress into broader narratives. This gives NPCs more natural long-term memory while keeping token usage efficient.
+
+### Memory Tiers
+
+```
+Tier 1: Raw Messages          (kept in DB, used for orphan recovery)
+   ↓ conversation ends
+Tier 2: Conversation Summaries (per-conversation, 1-2 paragraphs each)
+   ↓ diary consolidation (time + count thresholds)
+Tier 3: Diary Entries          (weekly first-person narrative, multiple summaries condensed)
+```
+
+Each tier is more abstract and compressed than the one below it. When building LLM context, the system loads diary entries (older, compressed) plus recent summaries (detailed). This naturally mimics how people remember: yesterday in detail, last week roughly, last month as broad strokes.
+
+### How It Works
+
+**Conversation summaries** (existing, Tier 2): When a conversation ends, the LLM summarizes it from the NPC's perspective. Stored in the `summaries` table with timestamps.
+
+**Diary entries** (Tier 3): At conversation start, `DiaryConsolidator.maybe_consolidate()` checks two thresholds:
+1. **Time**: At least N game-days since last diary entry (default: 7, configurable via `diary_interval_days`)
+2. **Volume**: At least M unconsolidated summaries (default: 3, configurable via `diary_min_summaries`)
+
+Both must be met. If a week passes with only 1 conversation, no diary is created — not enough happened. The summaries stay as-is until enough pile up.
+
+When triggered:
+1. All current summaries are combined and sent to the LLM with the `diary_prompt`
+2. The LLM writes a first-person diary entry in the NPC's voice
+3. The diary entry is saved to `diary_entries` table
+4. Consolidated summaries are pruned from the `summaries` table
+
+### Example
+
+**Before consolidation** (3 separate summaries):
+```
+[Day 38, 2 in the afternoon] The player came by and asked about the crops...
+[Day 40, 6 in the evening] We talked about the raiders hitting the supply line...
+[Day 42, 10 in the morning] The player brought back the missing shipment...
+```
+
+**After consolidation** (1 diary entry):
+```
+It's been a rough week. The player showed up asking about the crops — tatos are
+doing fine but we're short on mutfruit. Then word came in about raiders hitting
+our supply line to County Crossing. I was worried sick until the player tracked
+down the missing shipment and brought it back. Starting to think maybe this
+settlement thing might actually work out.
+```
+
+The diary captures the NPC's emotional arc and relationships, not just facts. The LLM gets richer, more characterful context in fewer tokens.
+
+### Key Files
+
+| File | Role |
+|---|---|
+| `src/remember/diary.py` | `DiaryConsolidator` — threshold checks, LLM call, save/prune |
+| `src/remember/summaries.py` | `Summaries.get_prompt_text()` — triggers consolidation, loads both tiers |
+| `src/conversation/conversation_db.py` | `diary_entries` table CRUD, `delete_summaries_before_ts()` |
+| `src/config/definitions/prompt_definitions.py` | `diary_prompt`, `diary_interval_days`, `diary_min_summaries` config values |
+
+### DB Schema
+
+```sql
+CREATE TABLE diary_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id TEXT NOT NULL,
+    npc_name TEXT NOT NULL,
+    npc_ref_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    game_days_from REAL NOT NULL,    -- in-game day range start
+    game_days_to REAL NOT NULL,      -- in-game day range end
+    summaries_from_ts REAL NOT NULL, -- real timestamp of earliest consolidated summary
+    summaries_to_ts REAL NOT NULL,   -- real timestamp of latest consolidated summary
+    created_at REAL NOT NULL
+);
+```
+
+### Context Building
+
+`Summaries.get_prompt_text()` builds the LLM context in order:
+1. Diary entries (older, compressed memories)
+2. Recent summaries (since last diary, detailed)
+
+Both are passed under the header: *"Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked."*
+
+### Future: Tier 4
+
+A potential fourth tier could consolidate multiple diary entries into a long-term character arc summary (monthly/quarterly). This would allow NPCs to maintain coherent personality development over very long playthroughs without unbounded token growth.
+
+---
+
 ## Vision System
 
 NPCs can "see" the player's screen via screenshot capture, processed by an LLM.
