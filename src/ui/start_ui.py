@@ -5,6 +5,7 @@ import gradio as gr
 from src.config.config_loader import ConfigLoader
 from src.http.routes.routeable import routeable
 from src.ui.settings_ui_constructor import SettingsUIConstructor
+from src.ui.settlement_board import create_settlement_board
 import src.utils as utils
 
 logger = utils.get_logger()
@@ -66,10 +67,16 @@ class StartUI(routeable):
         gr.mount_gradio_app(app,
                             self.create_main_block(),
                             path="/ui")
-        
+        gr.mount_gradio_app(app,
+                            create_settlement_board(self._config),
+                            path="/diary")
+
         link = f'http://localhost:{str(self._config.port)}/ui?__theme=dark'
+        diary_link = f'http://localhost:{str(self._config.port)}/diary?__theme=dark'
         logger.log(24, f'\nMantella settings can be changed via this link:')
         logger.log(25, link)
+        logger.log(24, f'Settlement Public Board:')
+        logger.log(25, diary_link)
         if self._config.auto_launch_ui == True:
             if not webbrowser.open(link, new=2):
                 logger.warning('\nFailed to open Mantella settings UI automatically. To edit settings, see here:')
