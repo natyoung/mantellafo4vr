@@ -5,12 +5,14 @@ from src.llm.message_thread import message_thread
 
 class Remembering(ABC):
     @abstractmethod
-    def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str) -> str:
-        """ Generates a text that explains the previous interactions of the npcs with the player. 
+    def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None) -> str:
+        """ Generates a text that explains the previous interactions of the npcs with the player.
             Text is passed as part of the prompt to the LLM
 
         Args:
             npcs_in_conversation (Characters): the NPCs in question
+            world_id (str): the world ID
+            current_game_days (float | None): current game timestamp for diary consolidation
 
         Returns:
             str: a single text

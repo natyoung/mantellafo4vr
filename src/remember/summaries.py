@@ -6,6 +6,7 @@ from src.llm.message_thread import message_thread
 from src.llm.messages import UserMessage
 from src.characters_manager import Characters
 from src.remember.remembering import Remembering
+from src.remember.diary import DiaryConsolidator
 from src import utils
 
 logger = utils.get_logger()
@@ -24,33 +25,56 @@ class Summaries(Remembering):
         self.__memory_prompt: str = config.memory_prompt
         self.__resummarize_prompt:str = config.resummarize_prompt
         self.__db = getattr(game, 'conversation_db', None)
+        self.__diary = DiaryConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
 
     @utils.time_it
-    def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str) -> str:
-        """Load the conversation summaries for all NPCs in the conversation and returns them as one string
+    def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None) -> str:
+        """Load diary entries + recent summaries for all NPCs in the conversation.
 
-        Args:
-            npcs_in_conversation (Characters): the npcs to load the summaries for
-
-        Returns:
-            str: a concatenation of the summaries as a single string
+        Triggers diary consolidation if thresholds are met (enough days + enough summaries).
+        Returns combined text: diary entries (older, compressed) then recent summaries (detailed).
         """
-        paragraphs = []
+        diary_paragraphs = []
+        summary_paragraphs = []
+
         for character in npcs_in_conversation.get_all_characters():
             if not character.is_player_character:
                 base_name = utils.remove_trailing_number(character.name)
+
+                # Try diary consolidation before loading
+                if self.__diary and current_game_days is not None and current_game_days > 1:
+                    try:
+                        self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
+                    except Exception as e:
+                        logger.warning(f"Diary consolidation failed for {base_name}: {e}")
+
+                # Load diary entries (older, consolidated memories)
+                if self.__db:
+                    db_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)
+                    for d in db_diary:
+                        content = d["content"].strip()
+                        if content and content not in diary_paragraphs:
+                            diary_paragraphs.append(content)
+
+                # Load remaining summaries (recent, detailed memories)
                 db_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
                 for s in db_summaries:
                     content = s["content"].strip()
                     if content:
                         for line in content.split("\n"):
                             line = line.strip()
-                            if line and line not in paragraphs:
-                                paragraphs.append(line)
-        if paragraphs:
-            result = "\n".join(paragraphs)
-            return f"Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked:\n{result}"
-        return ""
+                            if line and line not in summary_paragraphs:
+                                summary_paragraphs.append(line)
+
+        if not diary_paragraphs and not summary_paragraphs:
+            return ""
+
+        parts = ["Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked:"]
+        if diary_paragraphs:
+            parts.append("\n".join(diary_paragraphs))
+        if summary_paragraphs:
+            parts.append("\n".join(summary_paragraphs))
+        return "\n".join(parts)
 
     @utils.time_it
     def save_conversation_state(self, messages: message_thread, npcs_in_conversation: Characters, world_id: str, is_reload=False, pending_shares: list[tuple[str, str, str]] | None = None, end_timestamp: float | None = None):
