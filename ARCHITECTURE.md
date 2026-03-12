@@ -406,6 +406,21 @@ Both are passed under the header: *"Below is your memory of past events. Do not 
 
 A potential fourth tier could consolidate multiple diary entries into a long-term character arc summary (monthly/quarterly). This would allow NPCs to maintain coherent personality development over very long playthroughs without unbounded token growth.
 
+### Settlement Public Board (Web UI)
+
+A web page at `/diary` lets you browse NPC diary entries and recent memories — like a wasteland community bulletin board where settlers post their logs.
+
+**Access**: `http://localhost:4999/diary?__theme=dark` (link also printed to console on startup)
+
+**Features**:
+- **Diary Entries** section: consolidated first-person NPC diary entries, ordered newest first
+- **Recent Memories** section: unconsolidated conversation summaries (not yet digested into diary)
+- **NPC filter**: dropdown to view a single NPC's entries
+- **Refresh**: reload from DB without page refresh
+- Wasteland-themed dark UI with green accent (matches Pip-Boy aesthetic)
+
+**Implementation**: Standalone Gradio Blocks app (`src/ui/settlement_board.py`) mounted alongside the settings UI. Opens a read-only SQLite connection to the conversation DB — no writes, no interference with the running game.
+
 ---
 
 ## Vision System
