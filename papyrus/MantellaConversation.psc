@@ -1423,6 +1423,7 @@ int function BuildContext()
     endIf
     F4SE_HTTP.setString(handle, mConsts.KEY_CONTEXT_LOCATION, currLoc)
     F4SE_HTTP.setInt(handle, mConsts.KEY_CONTEXT_TIME, GetCurrentHourOfDay())
+    F4SE_HTTP.setFloat(handle, mConsts.KEY_CONTEXT_GAMEDAYS, Utility.GetCurrentGameTime())
     F4SE_HTTP.setStringArray(handle, mConsts.KEY_CONTEXT_INGAMEEVENTS, _ingameEvents)
     int customValuesHandle = BuildCustomContextValues()
     F4SE_HTTP.setNestedDictionary(handle, mConsts.KEY_CONTEXT_CUSTOMVALUES, customValuesHandle)

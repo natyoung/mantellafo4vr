@@ -62,6 +62,7 @@ string property KEY_ACTOR_ACTIONS = "mantella_actor_actions" auto
 string property KEY_CONTEXT = "mantella_context" auto
 string property KEY_CONTEXT_LOCATION = "mantella_location" auto
 string property KEY_CONTEXT_TIME = "mantella_time" auto
+string property KEY_CONTEXT_GAMEDAYS = "mantella_gamedays" auto
 string property KEY_CONTEXT_INGAMEEVENTS = "mantella_ingame_events" auto
 string property KEY_CONTEXT_CUSTOMVALUES = "mantella_custom_context_values" auto
 
