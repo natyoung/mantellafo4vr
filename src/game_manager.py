@@ -136,6 +136,11 @@ class GameStateManager:
             self.__rememberer.recover_orphaned_conversations(
                 self.__talk.context.npcs_in_conversation, world_id
             )
+            # Kick off diary/arc/rumor consolidation in background thread
+            # (non-blocking — prompt generation uses whatever is already in the DB)
+            self.__rememberer.run_consolidation_async(
+                self.__talk.context.npcs_in_conversation, world_id, self.__talk.context.game_days
+            )
 
         # Build response
         response: dict[str, Any] = {

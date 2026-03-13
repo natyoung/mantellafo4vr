@@ -33,6 +33,13 @@ class Remembering(ABC):
         """
         pass
 
+    def run_consolidation_async(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None):
+        """Kick off memory consolidation in a background thread.
+
+        Default no-op. Override in subclasses that support consolidation.
+        """
+        pass
+
     def recover_orphaned_conversations(self, npcs_in_conversation: Characters, world_id: str):
         """Recover and summarize messages from crashed conversations.
 

@@ -1,4 +1,5 @@
 import time
+from threading import Thread
 from src.config.config_loader import ConfigLoader
 from src.games.gameable import Gameable
 from src.llm.llm_client import LLMClient
@@ -39,6 +40,45 @@ class Summaries(Remembering):
     MAX_RUMORS = 3
     RECENT_GUARANTEED = 2  # Most recent memories always included per tier
 
+    def run_consolidation_async(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None):
+        """Kick off memory consolidation (diary, arc, rumors) in a background thread.
+
+        This avoids blocking conversation startup with slow LLM calls.
+        If consolidation finishes before the first prompt generation, new
+        diaries/arcs will be available. Otherwise the prompt uses whatever
+        is already in the DB (stale by at most one conversation).
+        """
+        if not isinstance(current_game_days, (int, float)) or current_game_days <= 1:
+            return
+        if not self.__db:
+            return
+        Thread(target=self._run_consolidation, args=(npcs_in_conversation, world_id, current_game_days), daemon=True).start()
+
+    @utils.time_it
+    def _run_consolidation(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float):
+        """Run diary → rumor → arc consolidation for all NPCs. Called from background thread."""
+        for character in npcs_in_conversation.get_all_characters():
+            if character.is_player_character:
+                continue
+            base_name = utils.remove_trailing_number(character.name)
+            try:
+                diary_created = False
+                if self.__diary:
+                    diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
+
+                if diary_created and self.__rumors:
+                    latest_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)
+                    if latest_diary:
+                        self.__rumors.maybe_generate(
+                            world_id, base_name, character.ref_id,
+                            latest_diary[-1]["content"], current_game_days,
+                        )
+
+                if self.__arc:
+                    self.__arc.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
+            except Exception as e:
+                logger.warning(f"Background memory consolidation failed for {base_name}: {e}")
+
     @utils.time_it
     def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None, context_hint: str = "") -> str:
         """Load character arcs + diary entries + recent summaries for all NPCs.
@@ -47,7 +87,6 @@ class Summaries(Remembering):
         when an NPC has more memories than the per-tier limits. Recent memories are
         always included regardless of relevance score.
 
-        Triggers diary and arc consolidation if thresholds are met.
         Returns combined text: arcs (broadest) → diaries (compressed) → summaries (detailed).
         """
         arc_paragraphs = []
@@ -57,34 +96,6 @@ class Summaries(Remembering):
         for character in npcs_in_conversation.get_all_characters():
             if not character.is_player_character:
                 base_name = utils.remove_trailing_number(character.name)
-
-                if current_game_days is not None and current_game_days > 1:
-                    # Try diary consolidation before loading
-                    diary_created = False
-                    if self.__diary:
-                        try:
-                            diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
-                        except Exception as e:
-                            logger.warning(f"Diary consolidation failed for {base_name}: {e}")
-
-                    # Generate faction rumor from new diary entry
-                    if diary_created and self.__rumors:
-                        try:
-                            latest_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)
-                            if latest_diary:
-                                self.__rumors.maybe_generate(
-                                    world_id, base_name, character.ref_id,
-                                    latest_diary[-1]["content"], current_game_days,
-                                )
-                        except Exception as e:
-                            logger.warning(f"Rumor generation failed for {base_name}: {e}")
-
-                    # Try arc consolidation (after diary, so new diaries exist)
-                    if self.__arc:
-                        try:
-                            self.__arc.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
-                        except Exception as e:
-                            logger.warning(f"Arc consolidation failed for {base_name}: {e}")
 
                 if self.__db:
                     # Load character arcs (oldest, broadest memories)
@@ -276,19 +287,19 @@ class Summaries(Remembering):
     @utils.time_it
     def __format_timestamp(self, game_days: float) -> str:
         """Formats a game timestamp into readable format: [Day X, Y in the evening]
-        
+
         Args:
             game_days: Game time as days passed (eg 42.75 = Day 42, 6pm)
-        
+
         Returns:
             str: Formatted timestamp like "[Day 42, 6 in the evening]"
         """
         days = int(game_days)
         hours = int((game_days - days) * 24)
         in_game_time_twelve_hour = hours - 12 if hours > 12 else hours
-        
+
         return f"[Day {days}, {in_game_time_twelve_hour} {utils.get_time_group(hours)}]"
-    
+
     @utils.time_it
     def summarize_conversation(self, text_to_summarize: str, prompt: str, npc_name: str) -> str:
         summary = ''
