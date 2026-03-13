@@ -11,5 +11,5 @@
     "allow_repeat": true,
     "one-on-one": true,
     "multi-npc": true,
-    "radiant": true
+    "radiant": false
 }
