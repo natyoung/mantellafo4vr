@@ -19,6 +19,24 @@ def _get_db_path(config: ConfigLoader) -> Path:
     return Path(config.save_folder) / "data" / game_folder / "conversations" / "conversations.db"
 
 
+def _read_character_arcs(db_path: Path) -> list[dict]:
+    if not db_path.exists():
+        return []
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        cur = conn.execute("""
+            SELECT npc_name, npc_ref_id, content, game_days_from, game_days_to, created_at
+            FROM character_arcs
+            ORDER BY game_days_to DESC
+        """)
+        return [dict(row) for row in cur.fetchall()]
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+
+
 def _read_diary_entries(db_path: Path) -> list[dict]:
     if not db_path.exists():
         return []
@@ -63,7 +81,7 @@ def _get_npc_list(db_path: Path) -> list[str]:
     conn = sqlite3.connect(str(db_path))
     try:
         names = set()
-        for table in ["diary_entries", "summaries"]:
+        for table in ["character_arcs", "diary_entries", "summaries"]:
             try:
                 cur = conn.execute(f"SELECT DISTINCT npc_name FROM {table}")
                 names.update(row[0] for row in cur.fetchall())
@@ -82,11 +100,13 @@ def _format_game_days(game_days: float) -> str:
     return f"Day {days}, {time_12h} {period}".strip()
 
 
-def _build_board_html(db_path: Path, npc_filter: str = "All", view: str = "Both") -> str:
-    diary_entries = _read_diary_entries(db_path) if view in ("Diary Entries", "Both") else []
-    summaries = _read_recent_summaries(db_path) if view in ("Recent Memories", "Both") else []
+def _build_board_html(db_path: Path, npc_filter: str = "All", view: str = "All") -> str:
+    arcs = _read_character_arcs(db_path) if view in ("Character Arcs", "All") else []
+    diary_entries = _read_diary_entries(db_path) if view in ("Diary Entries", "All") else []
+    summaries = _read_recent_summaries(db_path) if view in ("Recent Memories", "All") else []
 
     if npc_filter and npc_filter != "All":
+        arcs = [a for a in arcs if a["npc_name"] == npc_filter]
         diary_entries = [d for d in diary_entries if d["npc_name"] == npc_filter]
         summaries = [s for s in summaries if s["npc_name"] == npc_filter]
 
@@ -95,6 +115,22 @@ def _build_board_html(db_path: Path, npc_filter: str = "All", view: str = "Both"
         <h1 style="color: #4CAF50; margin: 0; font-size: 28px;">SETTLEMENT PUBLIC BOARD</h1>
         <p style="color: #888; margin: 5px 0 0 0; font-style: italic;">Community log — what your settlers have been up to</p>
     </div>"""
+
+    if arcs:
+        html += """<div style="margin-bottom: 30px;">
+            <h2 style="color: #FFD700; border-bottom: 1px solid #333; padding-bottom: 8px;">Character Arcs</h2>
+            <p style="color: #666; font-size: 12px; margin-top: 4px;">Long-term character development</p>"""
+        for arc in arcs:
+            days_range = f"{_format_game_days(arc['game_days_from'])} — {_format_game_days(arc['game_days_to'])}"
+            content_html = arc["content"].replace("\n", "<br>")
+            html += f"""<div style="margin: 15px 0; padding: 15px; background: #1a1a0a; border-left: 3px solid #FFD700; border-radius: 4px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <strong style="color: #FFD700; font-size: 16px;">{arc['npc_name']}</strong>
+                    <span style="color: #666; font-size: 12px;">{days_range}</span>
+                </div>
+                <div style="color: #ccc; line-height: 1.6;">{content_html}</div>
+            </div>"""
+        html += "</div>"
 
     if diary_entries:
         html += """<div style="margin-bottom: 30px;">
@@ -123,7 +159,7 @@ def _build_board_html(db_path: Path, npc_filter: str = "All", view: str = "Both"
             </div>"""
         html += "</div>"
 
-    if not diary_entries and not summaries:
+    if not arcs and not diary_entries and not summaries:
         html += """<div style="text-align: center; padding: 40px; color: #666;">
             <p style="font-size: 18px;">The board is empty.</p>
             <p>NPCs will post diary entries after enough conversations and game time has passed.</p>
@@ -159,8 +195,8 @@ def create_settlement_board(config: ConfigLoader) -> gr.Blocks:
                 interactive=True,
             )
             view_dropdown = gr.Dropdown(
-                choices=["Both", "Diary Entries", "Recent Memories"],
-                value="Both",
+                choices=["All", "Character Arcs", "Diary Entries", "Recent Memories"],
+                value="All",
                 label="Show",
                 interactive=True,
             )

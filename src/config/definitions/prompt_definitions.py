@@ -279,6 +279,39 @@ Keep it concise — one or two paragraphs. Write in {language}."""
         return ConfigValueInt("diary_min_summaries", "Diary Min Summaries", description, 3, 2, 50)
 
     @staticmethod
+    def get_arc_prompt_config_value() -> ConfigValue:
+        arc_prompt_description = """The prompt used to consolidate multiple diary entries into a character arc summary.
+                                   This is the highest tier of the hierarchical memory system: diary entries are
+                                   periodically consolidated into character arc summaries that capture long-term
+                                   personality development and relationship evolution.
+                                   Dynamic variables in curly brackets {}:
+                                       name = the NPC's name
+                                       language = the selected language
+                                       game = the game selected"""
+        arc_prompt = """You are {name} in {game}, reflecting on a significant chapter of your life. Below are your diary entries spanning this period.
+Write a character arc summary: How have you developed as a person? What major events shaped you?
+What relationships and conflicts define who you are now? Write as {name} looking back on this chapter.
+Keep it 3-5 paragraphs, narrative form. Refer to the player as "the player" (never by name).
+Write in {language}."""
+        return ConfigValueString("arc_prompt", "Character Arc Prompt", arc_prompt_description, arc_prompt,
+                                 [PromptDefinitions.PromptChecker(["name", "language", "game"])])
+
+    @staticmethod
+    def get_arc_interval_days_config_value() -> ConfigValue:
+        description = """How many in-game days must pass before diary entries are consolidated into a character arc.
+                        The NPC must also have at least 3 unconsolidated diary entries. This is the highest tier
+                        of the hierarchical memory system: recent memories stay as diary entries, older ones
+                        get compressed into character arc summaries."""
+        return ConfigValueInt("arc_interval_days", "Arc Interval (Game Days)", description, 30, 7, 365)
+
+    @staticmethod
+    def get_arc_min_diaries_config_value() -> ConfigValue:
+        description = """Minimum number of unconsolidated diary entries required before a character arc is created.
+                        Even if enough game days have passed, arc consolidation is skipped if
+                        the NPC hasn't accumulated enough diary entries."""
+        return ConfigValueInt("arc_min_diaries", "Arc Min Diaries", description, 3, 2, 50)
+
+    @staticmethod
     def get_vision_prompt_config_value() -> ConfigValue:
         vision_prompt_description = """The prompt passed to the vision-capable LLM when `Custom Vision Model` is enabled."""
         vision_prompt = """This image is the player's point of view in {game}. Describe only the environment, objects, and characters visible in the scene. Ignore any HUD elements (gauges, dials, compass, health bars, text overlays, notifications) — those are game UI, not part of the world. Do not mention the game or that this is an image. Be brief (1-2 sentences)."""

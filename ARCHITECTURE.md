@@ -326,15 +326,17 @@ NPC memory uses a tiered system inspired by human memory consolidation — recen
 Tier 1: Raw Messages          (kept in DB, used for orphan recovery)
    ↓ conversation ends
 Tier 2: Conversation Summaries (per-conversation, 1-2 paragraphs each)
-   ↓ diary consolidation (time + count thresholds)
+   ↓ diary consolidation (7+ game days + 3+ summaries)
 Tier 3: Diary Entries          (weekly first-person narrative, multiple summaries condensed)
+   ↓ arc consolidation (30+ game days + 3+ diary entries)
+Tier 4: Character Arcs         (monthly+ character development, multiple diaries condensed)
 ```
 
 Each tier is more abstract and compressed than the one below it. When building LLM context, the system loads diary entries (older, compressed) plus recent summaries (detailed). This naturally mimics how people remember: yesterday in detail, last week roughly, last month as broad strokes.
 
 ### How It Works
 
-**Conversation summaries** (existing, Tier 2): When a conversation ends, the LLM summarizes it from the NPC's perspective. Stored in the `summaries` table with timestamps.
+**Conversation summaries** (Tier 2): When a conversation ends, the LLM summarizes it from the NPC's perspective. Stored in the `summaries` table with timestamps.
 
 **Diary entries** (Tier 3): At conversation start, `DiaryConsolidator.maybe_consolidate()` checks two thresholds:
 1. **Time**: At least N game-days since last diary entry (default: 7, configurable via `diary_interval_days`)
@@ -368,14 +370,25 @@ settlement thing might actually work out.
 
 The diary captures the NPC's emotional arc and relationships, not just facts. The LLM gets richer, more characterful context in fewer tokens.
 
+**Character arcs** (Tier 4): After diary consolidation, `ArcConsolidator.maybe_consolidate()` checks two thresholds:
+1. **Time**: At least `arc_interval_days` (default: 30 game days) since last arc
+2. **Volume**: At least `arc_min_diaries` (default: 3) unconsolidated diary entries
+
+When triggered:
+1. All current diary entries are combined and sent to the LLM with the `arc_prompt`
+2. The LLM writes a character arc summary — a reflective narrative about the NPC's development
+3. The arc is saved to `character_arcs` table
+4. Consolidated diary entries are pruned
+
 ### Key Files
 
 | File | Role |
 |---|---|
+| `src/remember/arc.py` | `ArcConsolidator` — threshold checks, LLM call, save/prune |
 | `src/remember/diary.py` | `DiaryConsolidator` — threshold checks, LLM call, save/prune |
-| `src/remember/summaries.py` | `Summaries.get_prompt_text()` — triggers consolidation, loads both tiers |
-| `src/conversation/conversation_db.py` | `diary_entries` table CRUD, `delete_summaries_before_ts()` |
-| `src/config/definitions/prompt_definitions.py` | `diary_prompt`, `diary_interval_days`, `diary_min_summaries` config values |
+| `src/remember/summaries.py` | `Summaries.get_prompt_text()` — triggers consolidation, loads all tiers |
+| `src/conversation/conversation_db.py` | `character_arcs` + `diary_entries` table CRUD |
+| `src/config/definitions/prompt_definitions.py` | `arc_prompt`, `arc_interval_days`, `arc_min_diaries`, `diary_prompt`, etc. |
 
 ### DB Schema
 
@@ -392,19 +405,29 @@ CREATE TABLE diary_entries (
     summaries_to_ts REAL NOT NULL,   -- real timestamp of latest consolidated summary
     created_at REAL NOT NULL
 );
+
+CREATE TABLE character_arcs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id TEXT NOT NULL,
+    npc_name TEXT NOT NULL,
+    npc_ref_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    game_days_from REAL NOT NULL,    -- in-game day range start
+    game_days_to REAL NOT NULL,      -- in-game day range end
+    diary_from_ts REAL NOT NULL,     -- real timestamp of earliest consolidated diary
+    diary_to_ts REAL NOT NULL,       -- real timestamp of latest consolidated diary
+    created_at REAL NOT NULL
+);
 ```
 
 ### Context Building
 
 `Summaries.get_prompt_text()` builds the LLM context in order:
-1. Diary entries (older, compressed memories)
-2. Recent summaries (since last diary, detailed)
+1. Character arcs (oldest, broadest — long-term development)
+2. Diary entries (older, compressed memories)
+3. Recent summaries (since last diary, detailed)
 
-Both are passed under the header: *"Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked."*
-
-### Future: Tier 4
-
-A potential fourth tier could consolidate multiple diary entries into a long-term character arc summary (monthly/quarterly). This would allow NPCs to maintain coherent personality development over very long playthroughs without unbounded token growth.
+All are passed under the header: *"Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked."*
 
 ### Settlement Public Board (Web UI)
 

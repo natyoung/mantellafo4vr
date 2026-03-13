@@ -301,6 +301,66 @@ class TestDiaryEntries:
         assert entries[1]["content"] == "Second."
 
 
+class TestCharacterArcs:
+    def test_save_and_get_character_arc(self, db: ConversationDB):
+        db.save_character_arc("world1", "Preston", "00ABC", "Preston's arc: from reluctant leader to confident general.",
+                              game_days_from=1.0, game_days_to=100.0,
+                              diary_from_ts=100.0, diary_to_ts=5000.0)
+        arcs = db.get_all_character_arcs("world1", "Preston", "00ABC")
+        assert len(arcs) == 1
+        assert "reluctant leader" in arcs[0]["content"]
+        assert arcs[0]["game_days_from"] == 1.0
+        assert arcs[0]["game_days_to"] == 100.0
+
+    def test_get_latest_arc_game_days(self, db: ConversationDB):
+        db.save_character_arc("world1", "Preston", "00ABC", "First arc.",
+                              game_days_from=1.0, game_days_to=100.0,
+                              diary_from_ts=100.0, diary_to_ts=5000.0)
+        db.save_character_arc("world1", "Preston", "00ABC", "Second arc.",
+                              game_days_from=100.0, game_days_to=200.0,
+                              diary_from_ts=5000.0, diary_to_ts=10000.0)
+        latest = db.get_latest_arc_game_days("world1", "Preston", "00ABC")
+        assert latest == 200.0
+
+    def test_get_latest_arc_game_days_returns_none_when_empty(self, db: ConversationDB):
+        latest = db.get_latest_arc_game_days("world1", "Preston", "00ABC")
+        assert latest is None
+
+    def test_delete_diary_entries_before_ts(self, db: ConversationDB):
+        db.save_diary_entry("world1", "Preston", "00ABC", "Old diary.",
+                           game_days_from=1.0, game_days_to=7.0,
+                           summaries_from_ts=100.0, summaries_to_ts=200.0)
+        db.save_diary_entry("world1", "Preston", "00ABC", "Recent diary.",
+                           game_days_from=7.0, game_days_to=14.0,
+                           summaries_from_ts=200.0, summaries_to_ts=300.0)
+        db.delete_diary_entries_before_ts("world1", "Preston", "00ABC", 250.0)
+        remaining = db.get_all_diary_entries("world1", "Preston", "00ABC")
+        assert len(remaining) == 1
+        assert remaining[0]["content"] == "Recent diary."
+
+    def test_character_arcs_scoped_by_npc(self, db: ConversationDB):
+        db.save_character_arc("world1", "Preston", "00ABC", "Preston arc.",
+                              game_days_from=1.0, game_days_to=100.0,
+                              diary_from_ts=100.0, diary_to_ts=5000.0)
+        db.save_character_arc("world1", "Piper", "00DEF", "Piper arc.",
+                              game_days_from=1.0, game_days_to=100.0,
+                              diary_from_ts=100.0, diary_to_ts=5000.0)
+        assert len(db.get_all_character_arcs("world1", "Preston", "00ABC")) == 1
+        assert len(db.get_all_character_arcs("world1", "Piper", "00DEF")) == 1
+
+    def test_multiple_arcs_ordered_by_game_days(self, db: ConversationDB):
+        db.save_character_arc("world1", "Preston", "00ABC", "Second arc.",
+                              game_days_from=100.0, game_days_to=200.0,
+                              diary_from_ts=5000.0, diary_to_ts=10000.0)
+        db.save_character_arc("world1", "Preston", "00ABC", "First arc.",
+                              game_days_from=1.0, game_days_to=100.0,
+                              diary_from_ts=100.0, diary_to_ts=5000.0)
+        arcs = db.get_all_character_arcs("world1", "Preston", "00ABC")
+        assert len(arcs) == 2
+        assert arcs[0]["content"] == "First arc."
+        assert arcs[1]["content"] == "Second arc."
+
+
 class TestClose:
     def test_close_and_reopen(self, tmp_path: Path):
         db_path = tmp_path / "test.db"

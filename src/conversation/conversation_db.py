@@ -63,6 +63,21 @@ CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_msg_npc ON messages(world_id, npc_name, npc_ref_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_sum_npc ON summaries(world_id, npc_name, npc_ref_id, to_ts);
 CREATE INDEX IF NOT EXISTS idx_diary_npc ON diary_entries(world_id, npc_name, npc_ref_id, game_days_to);
+
+CREATE TABLE IF NOT EXISTS character_arcs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id TEXT NOT NULL,
+    npc_name TEXT NOT NULL,
+    npc_ref_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    game_days_from REAL NOT NULL,
+    game_days_to REAL NOT NULL,
+    diary_from_ts REAL NOT NULL,
+    diary_to_ts REAL NOT NULL,
+    created_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_arc_npc ON character_arcs(world_id, npc_name, npc_ref_id, game_days_to);
 """
 
 
@@ -289,6 +304,48 @@ class ConversationDB:
         )
         self.conn.commit()
 
+    # -- Character arcs --
+
+    def save_character_arc(self, world_id: str, npc_name: str, npc_ref_id: str,
+                           content: str, game_days_from: float, game_days_to: float,
+                           diary_from_ts: float, diary_to_ts: float):
+        self.conn.execute(
+            """INSERT INTO character_arcs
+               (world_id, npc_name, npc_ref_id, content, game_days_from, game_days_to,
+                diary_from_ts, diary_to_ts, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (world_id, npc_name, npc_ref_id, content, game_days_from, game_days_to,
+             diary_from_ts, diary_to_ts, time.time()),
+        )
+        self.conn.commit()
+
+    def get_all_character_arcs(self, world_id: str, npc_name: str, npc_ref_id: str) -> list[dict]:
+        cur = self.conn.execute(
+            """SELECT content, game_days_from, game_days_to, diary_from_ts, diary_to_ts, created_at
+               FROM character_arcs
+               WHERE world_id = ? AND npc_name = ? AND npc_ref_id = ?
+               ORDER BY game_days_to""",
+            (world_id, npc_name, npc_ref_id),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    def get_latest_arc_game_days(self, world_id: str, npc_name: str, npc_ref_id: str) -> float | None:
+        cur = self.conn.execute(
+            """SELECT MAX(game_days_to) FROM character_arcs
+               WHERE world_id = ? AND npc_name = ? AND npc_ref_id = ?""",
+            (world_id, npc_name, npc_ref_id),
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def delete_diary_entries_before_ts(self, world_id: str, npc_name: str, npc_ref_id: str, to_ts_threshold: float):
+        """Delete diary entries with summaries_to_ts <= threshold (already consolidated into arc)."""
+        self.conn.execute(
+            "DELETE FROM diary_entries WHERE world_id = ? AND npc_name = ? AND npc_ref_id = ? AND summaries_to_ts <= ?",
+            (world_id, npc_name, npc_ref_id, to_ts_threshold),
+        )
+        self.conn.commit()
+
     # -- Migration --
 
     def _migrate_schema(self):
@@ -317,6 +374,26 @@ class ConversationDB:
                     created_at REAL NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_diary_npc ON diary_entries(world_id, npc_name, npc_ref_id, game_days_to);
+            """)
+            self._conn.commit()
+        # character_arcs table migration for older DBs
+        try:
+            self._conn.execute("SELECT id FROM character_arcs LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.executescript("""
+                CREATE TABLE IF NOT EXISTS character_arcs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    world_id TEXT NOT NULL,
+                    npc_name TEXT NOT NULL,
+                    npc_ref_id TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    game_days_from REAL NOT NULL,
+                    game_days_to REAL NOT NULL,
+                    diary_from_ts REAL NOT NULL,
+                    diary_to_ts REAL NOT NULL,
+                    created_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_arc_npc ON character_arcs(world_id, npc_name, npc_ref_id, game_days_to);
             """)
             self._conn.commit()
 
