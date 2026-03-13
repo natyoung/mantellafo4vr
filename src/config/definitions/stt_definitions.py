@@ -26,6 +26,14 @@ class STTDefinitions:
         return ConfigValueBool("allow_interruption", "Allow Interruption", description, True, tags=[ConfigValueTag.share_row])
     
     @staticmethod
+    def get_interruption_delay_config_value() -> ConfigValue:
+        description = """How many seconds of continuous speech are required before an interruption is triggered (0-2).
+                        This filters out coughs, pops, and brief background noise that would otherwise
+                        falsely interrupt NPC speech. Set to 0 to interrupt on any detected sound (old behavior).
+                        Increase if you get frequent false interruptions."""
+        return ConfigValueFloat("interruption_delay", "Interruption Delay", description, 1.0, 0, 2, tags=[ConfigValueTag.advanced, ConfigValueTag.share_row])
+
+    @staticmethod
     def get_save_mic_input_config_value() -> ConfigValue:
         description = """Whether to save captured mic input to Documents/My Games/Mantella/data/tmp/mic/.
                         Enable this setting to test your mic quality.

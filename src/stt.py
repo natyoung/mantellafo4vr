@@ -133,12 +133,14 @@ class Transcriber:
         
         # Speech detection state
         self._speech_detected = False
+        self._speech_start_time = 0.0
         self._speech_end_time = 0
         self._last_update_time = 0
         self._current_transcription = ""
         self._transcription_ready = threading.Event()
         self._consecutive_empty_count = 0
         self._max_consecutive_empty = 10
+        self.interruption_delay = config.interruption_delay
 
     @property
     def is_listening(self) -> bool:
@@ -147,9 +149,18 @@ class Transcriber:
 
     @property
     def has_player_spoken(self) -> bool:
-        """Check if speech has been detected."""
+        """Check if sustained speech has been detected.
+
+        Returns True only after speech has been continuous for at least
+        `interruption_delay` seconds. This filters out coughs, pops, and
+        brief background noise that would otherwise falsely interrupt NPC speech.
+        """
         with self._lock:
-            return self._speech_detected
+            if not self._speech_detected:
+                return False
+            if self.interruption_delay <= 0:
+                return True
+            return (time.time() - self._speech_start_time) >= self.interruption_delay
     
     def set_temporary_pause(self, pause_seconds: float) -> None:
         """Set a temporary pause threshold override for the next transcription
@@ -426,6 +437,7 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
                     if probability > self.audio_threshold and not self._speech_detected:
                         logger.log(self.loglevel, 'Speech detected')
                         self._speech_detected = True
+                        self._speech_start_time = time.time()
 
                     # Use smoothed probability and lower end_threshold for speech-end
                     if smoothed_prob <= end_threshold and self._speech_detected and time.time() - self._last_update_time > self.pause_threshold:
@@ -488,6 +500,7 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
     def _reset_state(self) -> None:
         """Reset internal state."""
         self._speech_detected = False
+        self._speech_start_time = 0.0
         self._audio_buffer = np.array([], dtype=np.float32)
         self.vad = SileroVAD(self.SAMPLING_RATE)
         self._consecutive_empty_count = 0
