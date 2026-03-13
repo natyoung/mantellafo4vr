@@ -1166,6 +1166,22 @@ function SetGameRefs()
     PlayerFaction = Game.GetForm(0x0001C21C) as Faction
 endfunction
 
+bool Function IsPlayerSettlement(Location loc)
+    if !loc
+        return false
+    endif
+    Keyword workshopKeyword = Game.GetForm(0x00058AEA) as Keyword  ; LocTypeWorkshopSettlement
+    if !workshopKeyword || !loc.HasKeyword(workshopKeyword)
+        return false
+    endif
+    WorkshopParentScript wsParent = (Game.GetForm(0x0002058E) as Quest) as WorkshopParentScript
+    if !wsParent
+        return false
+    endif
+    WorkshopScript wsRef = wsParent.GetWorkshopFromLocation(loc)
+    return wsRef && wsRef.OwnedByPlayer
+EndFunction
+
 bool Function IsPlayerInConversation()
     int i = 0
     While i < Participants.GetSize()
@@ -1425,7 +1441,7 @@ EndFunction
 int function BuildContext()
     int handle = F4SE_HTTP.createDictionary()
      String currLoc = ""
-    form currentLocation = playerRef.GetCurrentLocation() as Form
+    Location currentLocation = playerRef.GetCurrentLocation()
     if currentLocation
         currLoc = currentLocation.getName()
     Else
@@ -1436,6 +1452,8 @@ int function BuildContext()
     F4SE_HTTP.setFloat(handle, mConsts.KEY_CONTEXT_GAMEDAYS, Utility.GetCurrentGameTime())
     F4SE_HTTP.setStringArray(handle, mConsts.KEY_CONTEXT_INGAMEEVENTS, _ingameEvents)
     int customValuesHandle = BuildCustomContextValues()
+    ; Check if current location is a player-owned workshop settlement
+    F4SE_HTTP.setBool(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_IS_PLAYER_SETTLEMENT, IsPlayerSettlement(currentLocation))
     F4SE_HTTP.setNestedDictionary(handle, mConsts.KEY_CONTEXT_CUSTOMVALUES, customValuesHandle)
     return handle
 endFunction

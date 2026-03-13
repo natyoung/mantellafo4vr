@@ -845,7 +845,11 @@ class Context:
         trusts = self.__get_trusts()
         equipment = self.__get_npc_equipment_text()
         location = self.__location
-        self.__prev_location = location
+        # Append settlement ownership context if this is a player-owned settlement
+        is_player_settlement = self.get_custom_context_value(communication_constants.KEY_CONTEXT_IS_PLAYER_SETTLEMENT)
+        if is_player_settlement:
+            location = f"{self.__location}, the player's settlement"
+        self.__prev_location = self.__location
         weather = self.__weather
         time = self.__ingame_time - 12 if self.__ingame_time > 12 else self.__ingame_time
         time_group = get_time_group(self.__ingame_time)

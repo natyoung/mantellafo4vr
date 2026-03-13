@@ -113,6 +113,7 @@ string property KEY_ACTOR_CUSTOMVALUES_VISION_HINTSNAMEARRAY = "mantella_vision_
 string property KEY_ACTOR_CUSTOMVALUES_VISION_HINTSDISTANCEARRAY = "mantella_vision_hints_distance" auto
 string property KEY_ACTOR_CUSTOMVALUES_POSX = "mantella_actor_pos_x" auto
 string property KEY_ACTOR_CUSTOMVALUES_POSY = "mantella_actor_pos_y" auto
+string property KEY_CONTEXT_CUSTOMVALUES_IS_PLAYER_SETTLEMENT = "mantella_is_player_settlement" auto
 ;string property KEY_CONTEXT_CUSTOMVALUES_ACTORS_ALL_FOLLOWERS = "mantella_actors_all_followers" auto
 ;string property KEY_CONTEXT_CUSTOMVALUES_ACTORS_ALL_SETTLERS = "mantella_actors_all_settlers" auto
 ;string property KEY_CONTEXT_CUSTOMVALUES_ACTORS_ALL_GENERICNPCS = "mantella_actors_all_generic_npcs" auto

@@ -82,6 +82,9 @@ class communication_constants:
     KEY_QUEST_IDS_TO_CHECK: str = PREFIX + "quest_ids_to_check"
     KEY_CONTEXT_NPC_QUESTS: str = PREFIX + "npc_quests"
     
+    # Settlement ownership
+    KEY_CONTEXT_IS_PLAYER_SETTLEMENT: str = PREFIX + "is_player_settlement"
+
     # Player state context
     KEY_CONTEXT_PLAYER_STATE: str = PREFIX + "player_level"  # Contains full state string
     
