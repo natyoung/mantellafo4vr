@@ -92,6 +92,7 @@ class ConversationDB:
         # Touch the DB to create tables immediately
         _ = self.conn
         self._migrate_existing_files()
+        self.backfill_game_days()
 
     @property
     def conn(self) -> sqlite3.Connection:
@@ -345,6 +346,60 @@ class ConversationDB:
             (world_id, npc_name, npc_ref_id, to_ts_threshold),
         )
         self.conn.commit()
+
+    # -- Backfill --
+
+    def backfill_game_days(self, timescale: int = 20, session_gap: float = 1800.0,
+                           hours_per_break: float = 8.0) -> int:
+        """Estimate and fill in game_days for conversations that lack it.
+
+        Uses session-aware estimation: real time within play sessions is scaled
+        by timescale, but gaps between sessions (player quit and came back later)
+        are treated as a fixed amount of in-game time passing (sleep/travel).
+
+        Args:
+            timescale: Game timescale (default 20 = FO4 default)
+            session_gap: Real seconds between conversations to count as a session
+                break (default 1800 = 30 minutes)
+            hours_per_break: Game hours to add per session break (default 8)
+
+        Returns:
+            Number of conversations updated.
+        """
+        rows = self.conn.execute(
+            "SELECT id, started_at FROM conversations WHERE game_days IS NULL ORDER BY started_at"
+        ).fetchall()
+        if not rows:
+            return 0
+
+        # Build cumulative game-seconds for each conversation timestamp
+        game_seconds = 0.0
+        prev_ts = rows[0][1]
+        count = 0
+
+        for row in rows:
+            gap = row[1] - prev_ts
+            if gap > session_gap:
+                # Session break: add fixed hours instead of scaling real time
+                game_seconds += hours_per_break * 3600.0
+            else:
+                # Within session: scale real time by timescale
+                game_seconds += gap * timescale
+            prev_ts = row[1]
+
+            game_days = 1.0 + game_seconds / 86400.0
+            self.conn.execute(
+                "UPDATE conversations SET game_days = ? WHERE id = ?",
+                (game_days, row[0]),
+            )
+            count += 1
+        self.conn.commit()
+
+        if count > 0:
+            last_game_days = 1.0 + game_seconds / 86400.0
+            logger.info(f"Backfilled game_days for {count} conversations "
+                        f"(range 1.0 to {last_game_days:.1f} game days)")
+        return count
 
     # -- Migration --
 
