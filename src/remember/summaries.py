@@ -8,6 +8,7 @@ from src.characters_manager import Characters
 from src.remember.remembering import Remembering
 from src.remember.arc import ArcConsolidator
 from src.remember.diary import DiaryConsolidator
+from src.remember.relevance import score_memories
 from src import utils
 
 logger = utils.get_logger()
@@ -29,12 +30,22 @@ class Summaries(Remembering):
         self.__diary = DiaryConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
         self.__arc = ArcConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
 
-    @utils.time_it
-    def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None) -> str:
-        """Load diary entries + recent summaries for all NPCs in the conversation.
+    # Max memories per tier when relevance filtering is active
+    MAX_ARCS = 5
+    MAX_DIARIES = 5
+    MAX_SUMMARIES = 10
+    RECENT_GUARANTEED = 2  # Most recent memories always included per tier
 
-        Triggers diary consolidation if thresholds are met (enough days + enough summaries).
-        Returns combined text: diary entries (older, compressed) then recent summaries (detailed).
+    @utils.time_it
+    def get_prompt_text(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None, context_hint: str = "") -> str:
+        """Load character arcs + diary entries + recent summaries for all NPCs.
+
+        Uses relevance scoring to select the most contextually appropriate memories
+        when an NPC has more memories than the per-tier limits. Recent memories are
+        always included regardless of relevance score.
+
+        Triggers diary and arc consolidation if thresholds are met.
+        Returns combined text: arcs (broadest) → diaries (compressed) → summaries (detailed).
         """
         arc_paragraphs = []
         diary_paragraphs = []
@@ -62,6 +73,7 @@ class Summaries(Remembering):
                 if self.__db:
                     # Load character arcs (oldest, broadest memories)
                     db_arcs = self.__db.get_all_character_arcs(world_id, base_name, character.ref_id)
+                    db_arcs = score_memories(db_arcs, context_hint, max_results=self.MAX_ARCS, recent_guaranteed=self.RECENT_GUARANTEED)
                     for a in db_arcs:
                         content = a["content"].strip()
                         if content and content not in arc_paragraphs:
@@ -69,13 +81,17 @@ class Summaries(Remembering):
 
                     # Load diary entries (older, consolidated memories)
                     db_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)
+                    db_diary = score_memories(db_diary, context_hint, max_results=self.MAX_DIARIES, recent_guaranteed=self.RECENT_GUARANTEED)
                     for d in db_diary:
                         content = d["content"].strip()
                         if content and content not in diary_paragraphs:
                             diary_paragraphs.append(content)
 
                 # Load remaining summaries (recent, detailed memories)
-                db_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
+                all_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
+                db_summaries = score_memories(all_summaries, context_hint, max_results=self.MAX_SUMMARIES, recent_guaranteed=self.RECENT_GUARANTEED)
+                if len(all_summaries) > len(db_summaries):
+                    logger.info(f"Memory relevance filter for {base_name}: {len(db_summaries)}/{len(all_summaries)} summaries selected")
                 for s in db_summaries:
                     content = s["content"].strip()
                     if content:
