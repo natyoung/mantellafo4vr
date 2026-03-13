@@ -155,6 +155,7 @@ class MantellaConfigValueDefinitionsNew:
         prompts_category.add_config_value(PromptDefinitions.get_arc_prompt_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_arc_interval_days_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_arc_min_diaries_config_value())
+        prompts_category.add_config_value(PromptDefinitions.get_rumor_prompt_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_vision_prompt_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_function_llm_prompt_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_radiant_start_prompt_config_value())

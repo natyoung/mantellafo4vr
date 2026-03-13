@@ -1400,8 +1400,18 @@ int function buildActorSetting(Actor actorToBuild)
     F4SE_HTTP.setString(handle, mConsts.KEY_ACTOR_VOICETYPE, actorToBuild.GetVoiceType())
     F4SE_HTTP.setBool(handle, mConsts.KEY_ACTOR_ISINCOMBAT, actorToBuild.IsInCombat())    
     F4SE_HTTP.setBool(handle, mConsts.KEY_ACTOR_ISENEMY, actorToBuild.getcombattarget() == playerRef)
+    ; Determine faction
+    string actorFaction = ""
+    if actorToBuild != playerRef
+        if actorToBuild.IsinFaction(CompanionFaction) && actorToBuild.GetFactionRank(CompanionFaction) >= 0
+            actorFaction = "companion"
+        elseif actorToBuild.IsinFaction(SettlerFaction) && actorToBuild.IsinFaction(PlayerFaction)
+            actorFaction = "settler"
+        endif
+    endif
+    F4SE_HTTP.setString(handle, mConsts.KEY_ACTOR_FACTION, actorFaction)
     int customValuesHandle = BuildCustomActorValues(actorToBuild)
-    F4SE_HTTP.setNestedDictionary(handle, mConsts.KEY_ACTOR_CUSTOMVALUES, customValuesHandle)  
+    F4SE_HTTP.setNestedDictionary(handle, mConsts.KEY_ACTOR_CUSTOMVALUES, customValuesHandle)
     return handle
 endFunction
 

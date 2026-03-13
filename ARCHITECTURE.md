@@ -326,20 +326,54 @@ NPC memory uses a tiered system inspired by human memory consolidation — recen
 Tier 1: Raw Messages          (kept in DB, used for orphan recovery)
    ↓ conversation ends
 Tier 2: Conversation Summaries (per-conversation, 1-2 paragraphs each)
-   ↓ diary consolidation (7+ game days + 3+ summaries)
+   ↓ diary consolidation (5+ game days + 3+ summaries)
 Tier 3: Diary Entries          (weekly first-person narrative, multiple summaries condensed)
-   ↓ arc consolidation (30+ game days + 3+ diary entries)
+   ↓ arc consolidation (14+ game days + 3+ diary entries)
 Tier 4: Character Arcs         (monthly+ character development, multiple diaries condensed)
 ```
 
-Each tier is more abstract and compressed than the one below it. When building LLM context, the system loads diary entries (older, compressed) plus recent summaries (detailed). This naturally mimics how people remember: yesterday in detail, last week roughly, last month as broad strokes.
+Each tier is more abstract and compressed than the one below it. When building LLM context, the system loads all tiers filtered by relevance. This naturally mimics how people remember: yesterday in detail, last week roughly, last month as broad strokes.
+
+### Forgetting Curve
+
+NPC memory follows a natural forgetting curve — recent events are detailed, older ones fade to emotional impressions:
+
+| Time horizon | What the NPC remembers |
+|---|---|
+| **Last few conversations** | Specific details, exact events, dialogue topics |
+| **Past ~5 game days** | Summaries of what happened, key events compressed into diary entries |
+| **Past ~14 game days** | Broad narrative arcs — emotional development, relationship shifts, major turning points |
+
+**What gets forgotten**: Specific dialogue, minor events, exact sequences.
+
+**What persists**: Emotional development, trust/distrust, major turning points, relationship dynamics.
+
+**Data lifecycle**:
+- Raw messages — never deleted, but never re-read by the LLM
+- Summaries — deleted when consolidated into a diary entry
+- Diary entries — deleted when consolidated into a character arc
+- Character arcs — permanent, accumulate indefinitely
+
+Each consolidation step is destructive: the lower-tier data is pruned after the higher-tier summary is created.
+
+### Relevance Filtering (BM25)
+
+When an NPC has more memories than the per-tier cap, a BM25-style relevance scorer selects the most contextually appropriate ones. The query is built from the current location, NPC names, and NPC bios.
+
+| Tier | Max loaded | Recent guaranteed |
+|---|---|---|
+| Character arcs | 5 | 2 |
+| Diary entries | 5 | 2 |
+| Summaries | 10 | 2 |
+
+"Recent guaranteed" means the N most recent memories per tier are always included regardless of relevance score. The remaining slots are filled by highest BM25 score against the current context.
 
 ### How It Works
 
 **Conversation summaries** (Tier 2): When a conversation ends, the LLM summarizes it from the NPC's perspective. Stored in the `summaries` table with timestamps.
 
 **Diary entries** (Tier 3): At conversation start, `DiaryConsolidator.maybe_consolidate()` checks two thresholds:
-1. **Time**: At least N game-days since last diary entry (default: 7, configurable via `diary_interval_days`)
+1. **Time**: At least N game-days since last diary entry (default: 5, configurable via `diary_interval_days`)
 2. **Volume**: At least M unconsolidated summaries (default: 3, configurable via `diary_min_summaries`)
 
 Both must be met. If a week passes with only 1 conversation, no diary is created — not enough happened. The summaries stay as-is until enough pile up.
@@ -350,28 +384,8 @@ When triggered:
 3. The diary entry is saved to `diary_entries` table
 4. Consolidated summaries are pruned from the `summaries` table
 
-### Example
-
-**Before consolidation** (3 separate summaries):
-```
-[Day 38, 2 in the afternoon] The player came by and asked about the crops...
-[Day 40, 6 in the evening] We talked about the raiders hitting the supply line...
-[Day 42, 10 in the morning] The player brought back the missing shipment...
-```
-
-**After consolidation** (1 diary entry):
-```
-It's been a rough week. The player showed up asking about the crops — tatos are
-doing fine but we're short on mutfruit. Then word came in about raiders hitting
-our supply line to County Crossing. I was worried sick until the player tracked
-down the missing shipment and brought it back. Starting to think maybe this
-settlement thing might actually work out.
-```
-
-The diary captures the NPC's emotional arc and relationships, not just facts. The LLM gets richer, more characterful context in fewer tokens.
-
 **Character arcs** (Tier 4): After diary consolidation, `ArcConsolidator.maybe_consolidate()` checks two thresholds:
-1. **Time**: At least `arc_interval_days` (default: 30 game days) since last arc
+1. **Time**: At least `arc_interval_days` (default: 14 game days) since last arc
 2. **Volume**: At least `arc_min_diaries` (default: 3) unconsolidated diary entries
 
 When triggered:
@@ -426,6 +440,8 @@ CREATE TABLE character_arcs (
 1. Character arcs (oldest, broadest — long-term development)
 2. Diary entries (older, compressed memories)
 3. Recent summaries (since last diary, detailed)
+
+Each tier is filtered by BM25 relevance before being included (see Relevance Filtering above).
 
 All are passed under the header: *"Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked."*
 

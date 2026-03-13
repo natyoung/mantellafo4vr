@@ -316,6 +316,7 @@ LLM parameter list must follow the Python dictionary format: https://www.w3schoo
             self.arc_prompt = self.__definitions.get_string_value("arc_prompt")
             self.arc_interval_days = self.__definitions.get_int_value("arc_interval_days")
             self.arc_min_diaries = self.__definitions.get_int_value("arc_min_diaries")
+            self.rumor_prompt = self.__definitions.get_string_value("rumor_prompt")
             self.vision_prompt = self.__definitions.get_string_value("vision_prompt")
             self.function_llm_prompt = self.__definitions.get_string_value("function_llm_prompt")
 

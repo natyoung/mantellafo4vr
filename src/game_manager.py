@@ -480,6 +480,14 @@ class GameStateManager:
                         actor: Character | None = self.load_character(actorJson)
                         if actor:
                             actors_in_json.append(actor)
+                            # Upsert character record with faction for rumor system
+                            faction = actorJson.get(comm_consts.KEY_ACTOR_FACTION, "") or None
+                            if not actor.is_player_character:
+                                conversation_db = getattr(self.__game, 'conversation_db', None)
+                                if conversation_db:
+                                    conversation_db.upsert_character(
+                                        talk.context.world_id, actor.name, actor.ref_id, faction=faction,
+                                    )
                 self._disambiguate_game_names(actors_in_json)
                 talk.add_or_update_character(actors_in_json)
 

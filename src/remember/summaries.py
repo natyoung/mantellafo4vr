@@ -9,6 +9,7 @@ from src.remember.remembering import Remembering
 from src.remember.arc import ArcConsolidator
 from src.remember.diary import DiaryConsolidator
 from src.remember.relevance import score_memories
+from src.remember.rumors import RumorGenerator
 from src import utils
 
 logger = utils.get_logger()
@@ -29,11 +30,13 @@ class Summaries(Remembering):
         self.__db = getattr(game, 'conversation_db', None)
         self.__diary = DiaryConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
         self.__arc = ArcConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
+        self.__rumors = RumorGenerator(self.__db, client, config, language_name) if self.__db else None
 
     # Max memories per tier when relevance filtering is active
     MAX_ARCS = 5
     MAX_DIARIES = 5
     MAX_SUMMARIES = 10
+    MAX_RUMORS = 3
     RECENT_GUARANTEED = 2  # Most recent memories always included per tier
 
     @utils.time_it
@@ -57,11 +60,24 @@ class Summaries(Remembering):
 
                 if current_game_days is not None and current_game_days > 1:
                     # Try diary consolidation before loading
+                    diary_created = False
                     if self.__diary:
                         try:
-                            self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
+                            diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
                         except Exception as e:
                             logger.warning(f"Diary consolidation failed for {base_name}: {e}")
+
+                    # Generate faction rumor from new diary entry
+                    if diary_created and self.__rumors:
+                        try:
+                            latest_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)
+                            if latest_diary:
+                                self.__rumors.maybe_generate(
+                                    world_id, base_name, character.ref_id,
+                                    latest_diary[-1]["content"], current_game_days,
+                                )
+                        except Exception as e:
+                            logger.warning(f"Rumor generation failed for {base_name}: {e}")
 
                     # Try arc consolidation (after diary, so new diaries exist)
                     if self.__arc:
@@ -100,7 +116,25 @@ class Summaries(Remembering):
                             if line and line not in summary_paragraphs:
                                 summary_paragraphs.append(line)
 
-        if not arc_paragraphs and not diary_paragraphs and not summary_paragraphs:
+        # Load faction rumors for each NPC (what they've heard from faction peers)
+        rumor_paragraphs = []
+        rumor_faction = None
+        if self.__db:
+            for character in npcs_in_conversation.get_all_characters():
+                if not character.is_player_character:
+                    char_record = self.__db.get_character(world_id, character.ref_id)
+                    if char_record and char_record.get("faction"):
+                        rumor_faction = char_record["faction"]
+                        db_rumors = self.__db.get_faction_rumors(
+                            world_id, rumor_faction, exclude_ref_id=character.ref_id,
+                        )
+                        db_rumors = score_memories(db_rumors, context_hint, max_results=self.MAX_RUMORS, recent_guaranteed=1)
+                        for r in db_rumors:
+                            content = r["content"].strip()
+                            if content and content not in rumor_paragraphs:
+                                rumor_paragraphs.append(content)
+
+        if not arc_paragraphs and not diary_paragraphs and not summary_paragraphs and not rumor_paragraphs:
             return ""
 
         parts = ["Below is your memory of past events. Do not read these back verbatim — paraphrase naturally in your own voice if asked:"]
@@ -110,6 +144,10 @@ class Summaries(Remembering):
             parts.append("\n".join(diary_paragraphs))
         if summary_paragraphs:
             parts.append("\n".join(summary_paragraphs))
+        if rumor_paragraphs:
+            faction_label = rumor_faction.title() if rumor_faction else "your group"
+            parts.append(f"You've also heard the following from other {faction_label} members:")
+            parts.append("\n".join(rumor_paragraphs))
         return "\n".join(parts)
 
     @utils.time_it

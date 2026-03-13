@@ -49,6 +49,7 @@ string property KEY_ACTOR_VOICETYPE = "mantella_actor_voicetype" auto
 string property KEY_ACTOR_ISINCOMBAT = "mantella_actor_is_in_combat" auto
 string property KEY_ACTOR_ISENEMY = "mantella_actor_is_enemy" auto
 string property KEY_ACTOR_CUSTOMVALUES = "mantella_actor_custom_values" auto
+string property KEY_ACTOR_FACTION = "mantella_actor_faction" auto
 
 ;sentence
 string property KEY_ACTOR_SPEAKER = "mantella_actor_speaker" auto

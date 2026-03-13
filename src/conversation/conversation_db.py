@@ -78,6 +78,31 @@ CREATE TABLE IF NOT EXISTS character_arcs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_arc_npc ON character_arcs(world_id, npc_name, npc_ref_id, game_days_to);
+
+CREATE TABLE IF NOT EXISTS characters (
+    npc_ref_id TEXT NOT NULL,
+    world_id TEXT NOT NULL,
+    npc_name TEXT NOT NULL,
+    faction TEXT,
+    first_seen_at REAL NOT NULL,
+    last_seen_at REAL NOT NULL,
+    PRIMARY KEY (world_id, npc_ref_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_char_faction ON characters(world_id, faction);
+
+CREATE TABLE IF NOT EXISTS faction_rumors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    world_id TEXT NOT NULL,
+    faction TEXT NOT NULL,
+    source_npc_name TEXT NOT NULL,
+    source_npc_ref_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    game_days REAL NOT NULL,
+    created_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rumor_faction ON faction_rumors(world_id, faction, game_days);
 """
 
 
@@ -347,6 +372,71 @@ class ConversationDB:
         )
         self.conn.commit()
 
+    # -- Characters --
+
+    def upsert_character(self, world_id: str, npc_name: str, npc_ref_id: str,
+                         faction: str | None = None):
+        """Create or update a character record. Updates faction and last_seen_at on conflict."""
+        now = time.time()
+        # Normalize empty strings to None
+        if not faction:
+            faction = None
+        self.conn.execute(
+            """INSERT INTO characters (npc_ref_id, world_id, npc_name, faction, first_seen_at, last_seen_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(world_id, npc_ref_id) DO UPDATE SET
+                   npc_name = excluded.npc_name,
+                   faction = excluded.faction,
+                   last_seen_at = excluded.last_seen_at""",
+            (npc_ref_id, world_id, npc_name, faction, now, now),
+        )
+        self.conn.commit()
+
+    def get_character(self, world_id: str, npc_ref_id: str) -> dict | None:
+        cur = self.conn.execute(
+            "SELECT * FROM characters WHERE world_id = ? AND npc_ref_id = ?",
+            (world_id, npc_ref_id),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+    def get_faction_members(self, world_id: str, faction: str) -> list[dict]:
+        cur = self.conn.execute(
+            "SELECT * FROM characters WHERE world_id = ? AND faction = ?",
+            (world_id, faction),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    # -- Faction rumors --
+
+    def save_faction_rumor(self, world_id: str, faction: str, source_npc_name: str,
+                           source_npc_ref_id: str, content: str, game_days: float):
+        self.conn.execute(
+            """INSERT INTO faction_rumors
+               (world_id, faction, source_npc_name, source_npc_ref_id, content, game_days, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (world_id, faction, source_npc_name, source_npc_ref_id, content, game_days, time.time()),
+        )
+        self.conn.commit()
+
+    def get_faction_rumors(self, world_id: str, faction: str,
+                           exclude_ref_id: str | None = None) -> list[dict]:
+        if exclude_ref_id:
+            cur = self.conn.execute(
+                """SELECT * FROM faction_rumors
+                   WHERE world_id = ? AND faction = ? AND source_npc_ref_id != ?
+                   ORDER BY game_days""",
+                (world_id, faction, exclude_ref_id),
+            )
+        else:
+            cur = self.conn.execute(
+                """SELECT * FROM faction_rumors
+                   WHERE world_id = ? AND faction = ?
+                   ORDER BY game_days""",
+                (world_id, faction),
+            )
+        return [dict(row) for row in cur.fetchall()]
+
     # -- Backfill --
 
     def backfill_game_days(self, timescale: int = 20, session_gap: float = 1800.0,
@@ -449,6 +539,41 @@ class ConversationDB:
                     created_at REAL NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_arc_npc ON character_arcs(world_id, npc_name, npc_ref_id, game_days_to);
+            """)
+            self._conn.commit()
+        # characters table migration for older DBs
+        try:
+            self._conn.execute("SELECT npc_ref_id FROM characters LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.executescript("""
+                CREATE TABLE IF NOT EXISTS characters (
+                    npc_ref_id TEXT NOT NULL,
+                    world_id TEXT NOT NULL,
+                    npc_name TEXT NOT NULL,
+                    faction TEXT,
+                    first_seen_at REAL NOT NULL,
+                    last_seen_at REAL NOT NULL,
+                    PRIMARY KEY (world_id, npc_ref_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_char_faction ON characters(world_id, faction);
+            """)
+            self._conn.commit()
+        # faction_rumors table migration for older DBs
+        try:
+            self._conn.execute("SELECT id FROM faction_rumors LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.executescript("""
+                CREATE TABLE IF NOT EXISTS faction_rumors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    world_id TEXT NOT NULL,
+                    faction TEXT NOT NULL,
+                    source_npc_name TEXT NOT NULL,
+                    source_npc_ref_id TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    game_days REAL NOT NULL,
+                    created_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_rumor_faction ON faction_rumors(world_id, faction, game_days);
             """)
             self._conn.commit()
 

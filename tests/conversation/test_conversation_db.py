@@ -19,6 +19,8 @@ class TestTableCreation:
         assert "conversations" in tables
         assert "messages" in tables
         assert "summaries" in tables
+        assert "characters" in tables
+        assert "faction_rumors" in tables
 
     def test_wal_mode_enabled(self, db: ConversationDB):
         cur = db.conn.cursor()
@@ -359,6 +361,88 @@ class TestCharacterArcs:
         assert len(arcs) == 2
         assert arcs[0]["content"] == "First arc."
         assert arcs[1]["content"] == "Second arc."
+
+
+class TestCharacters:
+    def test_upsert_character_creates_new(self, db: ConversationDB):
+        db.upsert_character("world1", "Preston", "00ABC", faction="minutemen")
+        char = db.get_character("world1", "00ABC")
+        assert char is not None
+        assert char["npc_name"] == "Preston"
+        assert char["faction"] == "minutemen"
+
+    def test_upsert_character_updates_faction(self, db: ConversationDB):
+        db.upsert_character("world1", "Preston", "00ABC", faction="settler")
+        db.upsert_character("world1", "Preston", "00ABC", faction="minutemen")
+        char = db.get_character("world1", "00ABC")
+        assert char["faction"] == "minutemen"
+
+    def test_upsert_character_updates_last_seen(self, db: ConversationDB):
+        db.upsert_character("world1", "Preston", "00ABC", faction="settler")
+        first_seen = db.get_character("world1", "00ABC")["last_seen_at"]
+        import time; time.sleep(0.05)
+        db.upsert_character("world1", "Preston", "00ABC", faction="settler")
+        second_seen = db.get_character("world1", "00ABC")["last_seen_at"]
+        assert second_seen > first_seen
+
+    def test_get_character_returns_none_when_missing(self, db: ConversationDB):
+        assert db.get_character("world1", "99999") is None
+
+    def test_get_faction_members(self, db: ConversationDB):
+        db.upsert_character("world1", "Preston", "00ABC", faction="minutemen")
+        db.upsert_character("world1", "Piper", "00DEF", faction="companion")
+        db.upsert_character("world1", "Sturges", "00GHI", faction="minutemen")
+        members = db.get_faction_members("world1", "minutemen")
+        names = [m["npc_name"] for m in members]
+        assert "Preston" in names
+        assert "Sturges" in names
+        assert "Piper" not in names
+
+    def test_upsert_character_null_faction(self, db: ConversationDB):
+        db.upsert_character("world1", "Raider", "00ZZZ", faction=None)
+        char = db.get_character("world1", "00ZZZ")
+        assert char["faction"] is None
+
+    def test_upsert_character_empty_string_faction_becomes_none(self, db: ConversationDB):
+        db.upsert_character("world1", "Raider", "00ZZZ", faction="")
+        char = db.get_character("world1", "00ZZZ")
+        assert char["faction"] is None
+
+
+class TestFactionRumors:
+    def test_save_and_get_faction_rumors(self, db: ConversationDB):
+        db.save_faction_rumor("world1", "minutemen", "Preston", "00ABC",
+                              "Word is Preston dealt with some raiders.", game_days=10.0)
+        rumors = db.get_faction_rumors("world1", "minutemen")
+        assert len(rumors) == 1
+        assert "Preston dealt with" in rumors[0]["content"]
+        assert rumors[0]["source_npc_name"] == "Preston"
+
+    def test_get_faction_rumors_excludes_source_npc(self, db: ConversationDB):
+        db.save_faction_rumor("world1", "minutemen", "Preston", "00ABC",
+                              "Preston's rumor.", game_days=10.0)
+        db.save_faction_rumor("world1", "minutemen", "Sturges", "00GHI",
+                              "Sturges' rumor.", game_days=12.0)
+        rumors = db.get_faction_rumors("world1", "minutemen", exclude_ref_id="00ABC")
+        assert len(rumors) == 1
+        assert rumors[0]["source_npc_name"] == "Sturges"
+
+    def test_get_faction_rumors_ordered_by_game_days(self, db: ConversationDB):
+        db.save_faction_rumor("world1", "minutemen", "Preston", "00ABC",
+                              "Later rumor.", game_days=20.0)
+        db.save_faction_rumor("world1", "minutemen", "Sturges", "00GHI",
+                              "Earlier rumor.", game_days=5.0)
+        rumors = db.get_faction_rumors("world1", "minutemen")
+        assert rumors[0]["content"] == "Earlier rumor."
+        assert rumors[1]["content"] == "Later rumor."
+
+    def test_faction_rumors_scoped_by_faction(self, db: ConversationDB):
+        db.save_faction_rumor("world1", "minutemen", "Preston", "00ABC",
+                              "Minutemen rumor.", game_days=10.0)
+        db.save_faction_rumor("world1", "railroad", "Deacon", "00DEF",
+                              "Railroad rumor.", game_days=10.0)
+        assert len(db.get_faction_rumors("world1", "minutemen")) == 1
+        assert len(db.get_faction_rumors("world1", "railroad")) == 1
 
 
 class TestClose:

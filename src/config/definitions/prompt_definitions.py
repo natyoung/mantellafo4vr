@@ -312,6 +312,21 @@ Write in {language}."""
         return ConfigValueInt("arc_min_diaries", "Arc Min Diaries", description, 3, 2, 50)
 
     @staticmethod
+    def get_rumor_prompt_config_value() -> ConfigValue:
+        rumor_prompt_description = """The prompt used to generate faction rumors from diary entries.
+                                     When an NPC writes a diary entry, this prompt rewrites it as a
+                                     brief third-person rumor that other faction members will hear.
+                                     Dynamic variables in curly brackets {}:
+                                         name = the NPC's name
+                                         language = the selected language"""
+        rumor_prompt = """Rewrite the following diary entry as a brief third-person rumor or piece of gossip
+that other people in the same group might hear. Keep it to 1-2 sentences. Use vague language —
+this is secondhand information, not a direct account. The original author is {name}.
+Do not use quotation marks. Write in {language}."""
+        return ConfigValueString("rumor_prompt", "Faction Rumor Prompt", rumor_prompt_description, rumor_prompt,
+                                 [PromptDefinitions.PromptChecker(["name", "language"])])
+
+    @staticmethod
     def get_vision_prompt_config_value() -> ConfigValue:
         vision_prompt_description = """The prompt passed to the vision-capable LLM when `Custom Vision Model` is enabled."""
         vision_prompt = """This image is the player's point of view in {game}. Describe only the environment, objects, and characters visible in the scene. Ignore any HUD elements (gauges, dials, compass, health bars, text overlays, notifications) — those are game UI, not part of the world. Do not mention the game or that this is an image. Be brief (1-2 sentences)."""
