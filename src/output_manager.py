@@ -355,20 +355,23 @@ class ChatManager:
                                 while accumulator.has_next_sentence():
                                     current_sentence = accumulator.get_next_sentence()
                                     parsed_sentence: SentenceContent | None = None
-                                    
+
                                     # Apply parsers
                                     for parser in parser_chain:
                                         if not parsed_sentence:  # Try to extract a complete sentence
                                             parsed_sentence, current_sentence = parser.cut_sentence(current_sentence, settings)
                                         if parsed_sentence:  # Apply modifications if we already have a sentence
                                             parsed_sentence, pending_sentence = parser.modify_sentence_content(parsed_sentence, pending_sentence, settings)
-                                    
+
                                     accumulator.refuse(current_sentence)
-                                    
+
                                     # Process sentences from the parser chain
                                     if parsed_sentence:
                                         if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or parsed_sentence.sentence_type != SentenceTypeEnum.NARRATION:
-                                            new_sentence = self.generate_sentence(parsed_sentence)
+                                            # Run TTS in executor so the event loop keeps buffering
+                                            # incoming LLM tokens during synthesis (~1-3s)
+                                            loop = asyncio.get_running_loop()
+                                            new_sentence = await loop.run_in_executor(None, self.generate_sentence, parsed_sentence)
                                             blocking_queue.put(new_sentence)
                                             parsed_sentence = None
                                 
@@ -404,7 +407,8 @@ class ChatManager:
                             retries += 1
                             if retries >= max_retries:
                                 logger.warning(f"Empty LLM response for {active_character.name} after {retries} retries - using fallback")
-                                fallback = self.generate_sentence(SentenceContent(active_character, "I can't find the right words at the moment.", SentenceTypeEnum.SPEECH, True))
+                                loop = asyncio.get_running_loop()
+                                fallback = await loop.run_in_executor(None, self.generate_sentence, SentenceContent(active_character, "I can't find the right words at the moment.", SentenceTypeEnum.SPEECH, True))
                                 blocking_queue.put(fallback)
                                 break
                             wait = min(2 ** retries, 30)
@@ -430,7 +434,8 @@ class ChatManager:
                             logger.info(f"Response truncated for {active_character.name}, adding continuation prompt")
                             continuation_text = "...should I go on?"
                             raw_response += " " + continuation_text
-                            continuation = self.generate_sentence(SentenceContent(active_character, continuation_text, SentenceTypeEnum.SPEECH, True))
+                            loop = asyncio.get_running_loop()
+                            continuation = await loop.run_in_executor(None, self.generate_sentence, SentenceContent(active_character, continuation_text, SentenceTypeEnum.SPEECH, True))
                             blocking_queue.put(continuation)
 
                         break  # Got text response or hit an error, exit loop
@@ -438,9 +443,10 @@ class ChatManager:
                     except Exception as e:
                         retries += 1
                         utils.play_error_sound()
-                        logger.error(f"LLM API Error: {e}", exc_info=True)                    
+                        logger.error(f"LLM API Error: {e}", exc_info=True)
                         error_response = "I can't find the right words at the moment."
-                        new_sentence = self.generate_sentence(SentenceContent(active_character, error_response, SentenceTypeEnum.SPEECH, True))
+                        loop = asyncio.get_running_loop()
+                        new_sentence = await loop.run_in_executor(None, self.generate_sentence, SentenceContent(active_character, error_response, SentenceTypeEnum.SPEECH, True))
                         blocking_queue.put(new_sentence)
                         if new_sentence.error_message: # If the error message itself has an error, just give up
                             break
@@ -465,15 +471,16 @@ class ChatManager:
                     logger.error(f"LLM API Error: {e}")
             finally:
                 try:
+                    loop = asyncio.get_running_loop()
                     # Handle any remaining content
                     if parsed_sentence:
                         if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or parsed_sentence.sentence_type != SentenceTypeEnum.NARRATION:
-                            new_sentence = self.generate_sentence(parsed_sentence)
+                            new_sentence = await loop.run_in_executor(None, self.generate_sentence, parsed_sentence)
                             blocking_queue.put(new_sentence)
 
                     if pending_sentence:
                         if not self.__config.narration_handling == NarrationHandlingEnum.CUT_NARRATIONS or pending_sentence.sentence_type != SentenceTypeEnum.NARRATION:
-                            new_sentence = self.generate_sentence(pending_sentence)
+                            new_sentence = await loop.run_in_executor(None, self.generate_sentence, pending_sentence)
                             blocking_queue.put(new_sentence)
                     token_count = self.__client.get_count_tokens(raw_response)
                     logger.log(23, f"Full raw response ({token_count} tokens): {raw_response.strip()}")
