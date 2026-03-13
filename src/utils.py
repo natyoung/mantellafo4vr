@@ -30,8 +30,9 @@ def time_it(func):
         else:
             start = time.time()
             result = func(*args, **kwargs)
-            end = time.time()
-            logger.debug(f"Function {func.__module__}.{func.__name__} took {round(end - start, 5)} seconds to execute")
+            elapsed = round(time.time() - start, 5)
+            if elapsed >= 0.01:
+                logger.debug(f"Function {func.__module__}.{func.__name__} took {elapsed} seconds to execute")
 
         return result
     return wrapper
