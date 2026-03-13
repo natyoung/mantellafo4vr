@@ -269,7 +269,7 @@ Keep it concise — one or two paragraphs. Write in {language}."""
         description = """How many in-game days must pass before conversation summaries are consolidated into a diary entry.
                         The NPC must also have at least 3 unconsolidated summaries. This is part of the hierarchical
                         memory system: recent memories stay detailed, older ones get compressed into diary entries."""
-        return ConfigValueInt("diary_interval_days", "Diary Interval (Game Days)", description, 7, 1, 365)
+        return ConfigValueInt("diary_interval_days", "Diary Interval (Game Days)", description, 5, 1, 365)
 
     @staticmethod
     def get_diary_min_summaries_config_value() -> ConfigValue:
@@ -302,7 +302,7 @@ Write in {language}."""
                         The NPC must also have at least 3 unconsolidated diary entries. This is the highest tier
                         of the hierarchical memory system: recent memories stay as diary entries, older ones
                         get compressed into character arc summaries."""
-        return ConfigValueInt("arc_interval_days", "Arc Interval (Game Days)", description, 30, 7, 365)
+        return ConfigValueInt("arc_interval_days", "Arc Interval (Game Days)", description, 14, 7, 365)
 
     @staticmethod
     def get_arc_min_diaries_config_value() -> ConfigValue:
