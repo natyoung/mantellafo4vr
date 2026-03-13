@@ -154,8 +154,10 @@ class GameStateManager:
                 # TODO: Enable once Papyrus quest stage reporting is confirmed working
                 # self.__talk.waiting_for_game_context = True
         
+        if not self.__talk:
+            return self.error_message("Conversation was ended before it could start (game-side timeout during memory loading).")
         self.__talk.start_conversation()
-        
+
         return response
     
     
