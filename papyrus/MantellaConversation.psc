@@ -1248,8 +1248,27 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     if avRadio
         data += "|radio:" + (wsRef.GetValue(avRadio) as int) as String
     endif
-    ; Check if this workshop is in the trade caravan network
-    if wsParent.TradeCaravanWorkshops && wsParent.TradeCaravanWorkshops.Find(wsRef) >= 0
+    ; Check if this workshop has any supply lines (as start OR destination)
+    bool hasSupplyLine = false
+    int wsID = wsRef.GetWorkshopID()
+    Location[] linkedLocs = loc.GetAllLinkedLocations(wsParent.WorkshopCaravanKeyword)
+    if linkedLocs && linkedLocs.Length > 0
+        hasSupplyLine = true  ; outgoing supply line from this settlement
+    else
+        ; Check if any provisioner has this workshop as destination
+        int ci = 0
+        while ci < wsParent.CaravanActorAliases.GetCount() && !hasSupplyLine
+            Actor caravanActor = wsParent.CaravanActorAliases.GetAt(ci) as Actor
+            if caravanActor
+                WorkshopNPCScript npcScript = caravanActor as WorkshopNPCScript
+                if npcScript && npcScript.GetCaravanDestinationID() == wsID
+                    hasSupplyLine = true
+                endif
+            endif
+            ci += 1
+        endwhile
+    endif
+    if hasSupplyLine
         data += "|supply_lines:1"
     else
         data += "|supply_lines:0"
@@ -1484,7 +1503,12 @@ int function buildActorSetting(Actor actorToBuild)
     int handle = F4SE_HTTP.createDictionary()
     F4SE_HTTP.setInt(handle, mConsts.KEY_ACTOR_BASEID, (actorToBuild.getactorbase() as form).getformid())
     F4SE_HTTP.setInt(handle, mConsts.KEY_ACTOR_REFID, (actorToBuild as form).getformid())
-    F4SE_HTTP.setString(handle, mConsts.KEY_ACTOR_NAME, actorToBuild.GetDisplayName())
+    ; In FO4VR, GetDisplayName() returns "Settler" for the player character
+    if actorToBuild == playerRef
+        F4SE_HTTP.setString(handle, mConsts.KEY_ACTOR_NAME, playerRef.GetActorBase().GetName())
+    else
+        F4SE_HTTP.setString(handle, mConsts.KEY_ACTOR_NAME, actorToBuild.GetDisplayName())
+    endif
     F4SE_HTTP.setBool(handle, mConsts.KEY_ACTOR_ISPLAYER, actorToBuild == playerRef)
     F4SE_HTTP.setInt(handle, mConsts.KEY_ACTOR_GENDER, actorToBuild.getleveledactorbase().getsex())
     F4SE_HTTP.setString(handle, mConsts.KEY_ACTOR_RACE, actorToBuild.getrace())

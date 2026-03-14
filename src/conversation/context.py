@@ -664,12 +664,18 @@ class Context:
     
     @utils.time_it
     def update_context(self, location: str | None, in_game_time: int | None, custom_ingame_events: list[str] | None, weather: str | None, npcs_nearby: list[dict[str, Any]] | None, custom_context_values: dict[str, Any], config_settings: dict[str, Any] | None, game_days: float | None = None):
-        # Check if game context (quest info) is newly available
+        # Check if game context (quests, settlement, etc.) is newly available
         old_quest_context = self.__custom_context_values.get(communication_constants.KEY_CONTEXT_NPC_QUESTS) if self.__custom_context_values else None
         new_quest_context = custom_context_values.get(communication_constants.KEY_CONTEXT_NPC_QUESTS) if custom_context_values else None
         if new_quest_context and new_quest_context != old_quest_context:
             self.__game_context_changed = True
             logger.info(f"Game context updated with quest info: {new_quest_context}")
+
+        old_settlement = self.__custom_context_values.get(communication_constants.KEY_CONTEXT_SETTLEMENT) if self.__custom_context_values else None
+        new_settlement = custom_context_values.get(communication_constants.KEY_CONTEXT_SETTLEMENT) if custom_context_values else None
+        if new_settlement and new_settlement != old_settlement:
+            self.__game_context_changed = True
+            logger.info(f"Game context updated with settlement info: {new_settlement}")
         
         self.__custom_context_values = custom_context_values
 
