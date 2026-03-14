@@ -323,6 +323,13 @@ class Fallout4(Gameable):
     def is_sentence_allowed(self, text: str, count_sentence_in_text: int) -> bool:
         return True
     
+    WEATHER_CLASSIFICATIONS = [
+        "The weather is clear and pleasant.",
+        "The sky is overcast.",
+        "It is raining.",
+        "It is snowing.",
+    ]
+
     @utils.time_it
     def get_weather_description(self, weather_attributes: dict[str, Any]) -> str:
         """Returns a description of the current weather that can be used in the prompts
@@ -333,6 +340,21 @@ class Fallout4(Gameable):
         Returns:
             str: A prose description of the weather for the LLM
         """
+        # Check for radiation storm by weather form name
+        weather_name = weather_attributes.get("mantella_weather_name", "")
+        if weather_name:
+            name_lower = weather_name.lower()
+            if "radstorm" in name_lower or "rad_storm" in name_lower or "radiation" in name_lower:
+                return "A radiation storm is raging — the sky is green, lightning crackles, and the air is thick with rads. Everyone is anxious."
+            if "fog" in name_lower or "mist" in name_lower:
+                return "A thick fog has rolled in, reducing visibility."
+            if "dust" in name_lower:
+                return "A dust storm is blowing through."
+
+        # Fall back to classification
+        classification = weather_attributes.get("mantella_weather_classification", -1)
+        if isinstance(classification, int) and 0 <= classification < len(self.WEATHER_CLASSIFICATIONS):
+            return self.WEATHER_CLASSIFICATIONS[classification]
         return ""
 
     MALE_VOICE_MODELS_XVASYNTH: dict[str, str] = {

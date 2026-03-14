@@ -1523,6 +1523,14 @@ int function BuildContext()
     F4SE_HTTP.setInt(handle, mConsts.KEY_CONTEXT_TIME, GetCurrentHourOfDay())
     F4SE_HTTP.setFloat(handle, mConsts.KEY_CONTEXT_GAMEDAYS, Utility.GetCurrentGameTime())
     F4SE_HTTP.setStringArray(handle, mConsts.KEY_CONTEXT_INGAMEEVENTS, _ingameEvents)
+    ; Weather: send classification + form name for rad storm detection
+    Weather currentWeather = Weather.GetCurrentWeather()
+    if currentWeather
+        int weatherHandle = F4SE_HTTP.createDictionary()
+        F4SE_HTTP.setInt(weatherHandle, "mantella_weather_classification", currentWeather.GetClassification())
+        F4SE_HTTP.setString(weatherHandle, "mantella_weather_name", currentWeather.GetName())
+        F4SE_HTTP.setNestedDictionary(handle, "mantella_weather", weatherHandle)
+    endif
     int customValuesHandle = BuildCustomContextValues()
     ; Check if current location is a player-owned workshop settlement
     bool isSettlement = IsPlayerSettlement(currentLocation)
