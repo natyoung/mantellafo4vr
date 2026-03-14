@@ -1203,8 +1203,10 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     ActorValue avPower = wsParent.WorkshopRatings[5].resourceValue      ; WorkshopRatingPower
     ActorValue avBeds = wsParent.WorkshopRatings[6].resourceValue       ; WorkshopRatingBeds
     ; These are at higher indices, use the named constants
+    ActorValue avRadio = wsParent.WorkshopRatings[9].resourceValue               ; WorkshopRatingRadio
     ActorValue avLastAttack = wsParent.WorkshopRatings[12].resourceValue         ; WorkshopRatingLastAttackDaysSince
     ActorValue avLastAttackFaction = wsParent.WorkshopRatings[23].resourceValue  ; WorkshopRatingLastAttackFaction
+    ActorValue avCaravan = wsParent.WorkshopRatings[34].resourceValue            ; WorkshopRatingCaravan
 
     ; Build pipe-delimited settlement context string
     string data = ""
@@ -1241,6 +1243,12 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
                 data += "|last_attack_by:" + attackFaction.GetName()
             endif
         endif
+    endif
+    if avRadio
+        data += "|radio:" + (wsRef.GetValue(avRadio) as int) as String
+    endif
+    if avCaravan
+        data += "|supply_lines:" + (wsRef.GetValue(avCaravan) as int) as String
     endif
 
     F4SE_HTTP.setString(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_SETTLEMENT, data)

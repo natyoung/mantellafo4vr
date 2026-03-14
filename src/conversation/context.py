@@ -588,6 +588,20 @@ class Context:
         if power > 0:
             lines.append(f"The settlement has {power} units of power generation.")
 
+        # Supply lines
+        supply_lines = int(state.get("supply_lines", "0"))
+        if supply_lines > 0:
+            lines.append("The settlement is connected to a supply network with other settlements, sharing resources.")
+        elif pop > 5:
+            lines.append("The settlement is isolated — no supply lines connect it to other settlements.")
+
+        # Radio beacon (only mention sometimes — when it's contextually interesting)
+        radio = int(state.get("radio", "0"))
+        if radio > 0 and pop < 5:
+            lines.append("A radio beacon is broadcasting, trying to attract new settlers.")
+        elif radio == 0 and pop < 3:
+            lines.append("There's no recruitment radio beacon — the settlement isn't actively attracting newcomers.")
+
         lines.append(
             "Use this information naturally — don't recite statistics, but let your "
             "knowledge of conditions here inform how you talk about life at the settlement."
