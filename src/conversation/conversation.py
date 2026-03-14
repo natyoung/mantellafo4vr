@@ -200,7 +200,18 @@ class Conversation:
         if len(characters_removed_by_update) > 0:
             all_characters = self.__context.npcs_in_conversation.get_all_characters()
             all_characters.extend(characters_removed_by_update)
-            self.__save_conversations_for_characters(all_characters, is_reload=True)
+            # Run save in background to avoid blocking the game with LLM summary calls
+            import threading
+            save_chars = list(all_characters)  # snapshot
+            save_messages = list(self.__messages)
+            save_world_id = self.__context.world_id
+            save_rememberer = self.__rememberer
+            def _bg_save():
+                characters_object = Characters()
+                for npc in save_chars:
+                    characters_object.add_or_update_character(npc)
+                save_rememberer.save_conversation_state(save_messages, characters_object, save_world_id, True, None, None)
+            threading.Thread(target=_bg_save, daemon=True, name="conv_save_bg").start()
         
         # Set LLM debug log path to the character's conversation folder
         self.__update_llm_debug_path()
