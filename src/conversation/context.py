@@ -489,29 +489,98 @@ class Context:
         return ", ".join(env_parts) if env_parts else ""
     
     def _parse_settlement_context(self, raw: str) -> str:
-        """Parse settlement context from Papyrus format.
-        
-        Input: "population:12|defense:45|happiness:78"
-        Output: Human-readable settlement info.
+        """Parse settlement context from Papyrus format into natural language.
+
+        Input: "name:Sanctuary Hills|population:12|food:16|water:14|defense:87|power:22|beds:14|happiness:78"
+        Output: Natural language description of settlement conditions.
         """
         if not raw:
             return ""
-        
-        parts = raw.split("|")
-        lines = []
-        
-        for part in parts:
-            if part.startswith("population:"):
-                count = part.split(":", 1)[1]
-                lines.append(f"Population: {count} settlers")
-            elif part.startswith("defense:"):
-                defense = part.split(":", 1)[1]
-                lines.append(f"Defense: {defense}")
-            elif part.startswith("happiness:"):
-                happiness = part.split(":", 1)[1]
-                lines.append(f"Happiness: {happiness}%")
-        
-        return "\n".join(lines) if lines else ""
+
+        # Parse key:value pairs
+        state: dict[str, str] = {}
+        for part in raw.split("|"):
+            if ":" in part:
+                key, val = part.split(":", 1)
+                state[key] = val
+
+        if not state:
+            return ""
+
+        name = state.get("name", "this settlement")
+        pop = int(state.get("population", "0"))
+        food = int(state.get("food", "0"))
+        water = int(state.get("water", "0"))
+        defense = int(state.get("defense", "0"))
+        beds = int(state.get("beds", "0"))
+        happiness = int(state.get("happiness", "0"))
+        power = int(state.get("power", "0"))
+
+        lines = [f"You are at {name}, a settlement owned and built by the player."]
+        lines.append(f"The settlement has {pop} residents.")
+
+        # Food assessment
+        if pop > 0:
+            food_ratio = food / pop
+            if food_ratio >= 1.5:
+                lines.append("Food is abundant — more than enough for everyone.")
+            elif food_ratio >= 1.0:
+                lines.append("Food supply is adequate, meeting everyone's needs.")
+            elif food_ratio >= 0.5:
+                lines.append("Food is tight — not quite enough to go around.")
+            else:
+                lines.append("Food is critically low. People are going hungry.")
+
+        # Water assessment
+        if pop > 0:
+            water_ratio = water / pop
+            if water_ratio >= 1.5:
+                lines.append("Clean water is plentiful.")
+            elif water_ratio >= 1.0:
+                lines.append("Water supply is sufficient.")
+            elif water_ratio >= 0.5:
+                lines.append("Water is scarce — rationing may be necessary.")
+            else:
+                lines.append("Water is critically short.")
+
+        # Defense assessment
+        if pop > 0:
+            if defense >= pop * 3:
+                lines.append("The settlement is heavily fortified. Residents feel very safe.")
+            elif defense >= pop:
+                lines.append("Defenses are solid — enough to deter most threats.")
+            elif defense >= pop * 0.5:
+                lines.append("Defenses are thin. Attacks are a real concern.")
+            else:
+                lines.append("The settlement is barely defended. Residents are anxious about raids.")
+
+        # Beds
+        if pop > 0:
+            if beds >= pop:
+                lines.append("Everyone has a place to sleep.")
+            else:
+                lines.append(f"There aren't enough beds — {pop - beds} people sleep on the ground.")
+
+        # Happiness
+        if happiness >= 80:
+            lines.append("Morale is high. People are content with life here.")
+        elif happiness >= 60:
+            lines.append("Morale is decent, though there are grumbles.")
+        elif happiness >= 40:
+            lines.append("Morale is low. People are unhappy with conditions.")
+        else:
+            lines.append("Morale is terrible. Residents are miserable and may leave.")
+
+        # Power (only mention if notable)
+        if power > 0:
+            lines.append(f"The settlement has {power} units of power generation.")
+
+        lines.append(
+            "Use this information naturally — don't recite statistics, but let your "
+            "knowledge of conditions here inform how you talk about life at the settlement."
+        )
+
+        return "\n".join(lines)
     
     def _parse_player_effects(self, raw: str) -> str:
         """Parse player effects from Papyrus format.
@@ -849,9 +918,11 @@ class Context:
         trusts = self.__get_trusts()
         equipment = self.__get_npc_equipment_text()
         location = self.__location
-        # Append settlement ownership context if this is a player-owned settlement
+        # Settlement context is now handled by the === SETTLEMENT === section in get_game_context()
+        # Only add the simple suffix if no rich settlement data was received
         is_player_settlement = self.get_custom_context_value(communication_constants.KEY_CONTEXT_IS_PLAYER_SETTLEMENT)
-        if is_player_settlement:
+        has_settlement_data = self.get_custom_context_value(communication_constants.KEY_CONTEXT_SETTLEMENT)
+        if is_player_settlement and not has_settlement_data:
             location = f"{self.__location}, the player's settlement"
         self.__prev_location = self.__location
         weather = self.__weather

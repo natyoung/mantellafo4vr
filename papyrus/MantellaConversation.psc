@@ -1182,6 +1182,54 @@ bool Function IsPlayerSettlement(Location loc)
     return wsRef && wsRef.OwnedByPlayer
 EndFunction
 
+Function BuildSettlementData(int customValuesHandle, Location loc)
+    ; Get workshop reference for current location
+    WorkshopParentScript wsParent = (Game.GetForm(0x0002058E) as Quest) as WorkshopParentScript
+    if !wsParent
+        return
+    endif
+    WorkshopScript wsRef = wsParent.GetWorkshopFromLocation(loc)
+    if !wsRef
+        return
+    endif
+
+    ; Read workshop resource actor values by FormID
+    ActorValue avFood = Game.GetFormFromFile(0x000002E0, "Fallout4.esm") as ActorValue
+    ActorValue avWater = Game.GetFormFromFile(0x000002E1, "Fallout4.esm") as ActorValue
+    ActorValue avPower = Game.GetFormFromFile(0x000002E2, "Fallout4.esm") as ActorValue
+    ActorValue avDefense = Game.GetFormFromFile(0x000002E3, "Fallout4.esm") as ActorValue
+    ActorValue avPopulation = Game.GetFormFromFile(0x000002E4, "Fallout4.esm") as ActorValue
+    ActorValue avBeds = Game.GetFormFromFile(0x000002E5, "Fallout4.esm") as ActorValue
+    ActorValue avHappiness = Game.GetFormFromFile(0x000002E7, "Fallout4.esm") as ActorValue
+
+    ; Build pipe-delimited settlement context string
+    string data = ""
+    data += "name:" + loc.GetName()
+    if avPopulation
+        data += "|population:" + (wsRef.GetValue(avPopulation) as int) as String
+    endif
+    if avFood
+        data += "|food:" + (wsRef.GetValue(avFood) as int) as String
+    endif
+    if avWater
+        data += "|water:" + (wsRef.GetValue(avWater) as int) as String
+    endif
+    if avDefense
+        data += "|defense:" + (wsRef.GetValue(avDefense) as int) as String
+    endif
+    if avPower
+        data += "|power:" + (wsRef.GetValue(avPower) as int) as String
+    endif
+    if avBeds
+        data += "|beds:" + (wsRef.GetValue(avBeds) as int) as String
+    endif
+    if avHappiness
+        data += "|happiness:" + (wsRef.GetValue(avHappiness) as int) as String
+    endif
+
+    F4SE_HTTP.setString(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_SETTLEMENT, data)
+EndFunction
+
 bool Function IsPlayerInConversation()
     int i = 0
     While i < Participants.GetSize()
@@ -1453,7 +1501,12 @@ int function BuildContext()
     F4SE_HTTP.setStringArray(handle, mConsts.KEY_CONTEXT_INGAMEEVENTS, _ingameEvents)
     int customValuesHandle = BuildCustomContextValues()
     ; Check if current location is a player-owned workshop settlement
-    F4SE_HTTP.setBool(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_IS_PLAYER_SETTLEMENT, IsPlayerSettlement(currentLocation))
+    bool isSettlement = IsPlayerSettlement(currentLocation)
+    F4SE_HTTP.setBool(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_IS_PLAYER_SETTLEMENT, isSettlement)
+    ; If at a player settlement, collect workshop resource data
+    if isSettlement
+        BuildSettlementData(customValuesHandle, currentLocation)
+    endif
     F4SE_HTTP.setNestedDictionary(handle, mConsts.KEY_CONTEXT_CUSTOMVALUES, customValuesHandle)
     return handle
 endFunction

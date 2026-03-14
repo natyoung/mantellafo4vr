@@ -45,6 +45,47 @@ def test_context_generates_prompt_with_actions_when_advanced_disabled(default_co
     assert action_text_found
 
 
+class TestSettlementContext:
+    """Tests for _parse_settlement_context natural language generation"""
+
+    def test_well_supplied_settlement(self, default_context: Context):
+        raw = "name:Sanctuary Hills|population:12|food:20|water:18|defense:40|power:15|beds:14|happiness:82"
+        result = default_context._parse_settlement_context(raw)
+        assert "Sanctuary Hills" in result
+        assert "12 residents" in result
+        assert "abundant" in result  # food 20/12 >= 1.5
+        assert "plentiful" in result  # water 18/12 >= 1.5
+        assert "heavily fortified" in result  # defense 40 >= 12*3
+        assert "Everyone has a place to sleep" in result  # beds 14 >= 12
+        assert "content with life" in result  # happiness 82 >= 80
+        assert "15 units of power" in result
+        assert "don't recite statistics" in result
+
+    def test_struggling_settlement(self, default_context: Context):
+        raw = "name:Outpost Zimonja|population:6|food:2|water:2|defense:2|power:0|beds:3|happiness:35"
+        result = default_context._parse_settlement_context(raw)
+        assert "Outpost Zimonja" in result
+        assert "going hungry" in result  # food 2/6 < 0.5
+        assert "critically short" in result  # water 2/6 < 0.5
+        assert "barely defended" in result  # defense 2 < 6*0.5
+        assert "3 people sleep on the ground" in result  # 6-3=3
+        assert "miserable" in result  # happiness 35 < 40
+        assert "power" not in result.split("don't")[0] or "0 units" not in result  # power=0 not mentioned
+
+    def test_empty_input(self, default_context: Context):
+        assert default_context._parse_settlement_context("") == ""
+        assert default_context._parse_settlement_context(None) == ""
+
+    def test_zero_population(self, default_context: Context):
+        raw = "name:Red Rocket|population:0|food:5|water:3|defense:10|beds:4|happiness:50"
+        result = default_context._parse_settlement_context(raw)
+        assert "Red Rocket" in result
+        assert "0 residents" in result
+        # With pop=0, food/water/defense/beds ratios are skipped
+        assert "abundant" not in result
+        assert "plentiful" not in result
+
+
 class TestContextNearbyNPCs:
     """Tests for Context integration with nearby NPCs"""
 
