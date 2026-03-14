@@ -1193,28 +1193,27 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
         return
     endif
 
-    ; Read workshop resource actor values by FormID (verified in FO4Edit)
-    ActorValue avFood = Game.GetFormFromFile(0x00127243, "Fallout4.esm") as ActorValue          ; WorkshopRatingTotalFood
-    ActorValue avWater = Game.GetFormFromFile(0x00127246, "Fallout4.esm") as ActorValue         ; WorkshopRatingTotalWater
-    ActorValue avPower = Game.GetFormFromFile(0x00127244, "Fallout4.esm") as ActorValue         ; WorkshopRatingTotalPower
-    ActorValue avDefense = Game.GetFormFromFile(0x00127245, "Fallout4.esm") as ActorValue       ; WorkshopRatingTotalSafety
-    ActorValue avPopulation = Game.GetFormFromFile(0x0012723E, "Fallout4.esm") as ActorValue    ; WorkshopRatingPopulation
-    ActorValue avMissingBeds = Game.GetFormFromFile(0x0012723B, "Fallout4.esm") as ActorValue   ; WorkshopRatingMissingBeds
-    ActorValue avHappiness = Game.GetFormFromFile(0x00129157, "Fallout4.esm") as ActorValue     ; WorkshopRatingHappiness
-    ActorValue avLastAttack = Game.GetFormFromFile(0x00127239, "Fallout4.esm") as ActorValue   ; WorkshopRatingLastAttackDaysSince
-    ActorValue avLastAttackFaction = Game.GetFormFromFile(0x0012723A, "Fallout4.esm") as ActorValue ; WorkshopRatingLastAttackFaction
+    ; Get actor values from WorkshopParent's WorkshopRatings array (indices from WorkshopParentScript.psc)
+    ; This is the canonical way — avoids fragile FormID lookups
+    ActorValue avFood = wsParent.WorkshopRatings[0].resourceValue       ; WorkshopRatingFood
+    ActorValue avHappiness = wsParent.WorkshopRatings[1].resourceValue  ; WorkshopRatingHappiness
+    ActorValue avPopulation = wsParent.WorkshopRatings[2].resourceValue ; WorkshopRatingPopulation
+    ActorValue avDefense = wsParent.WorkshopRatings[3].resourceValue    ; WorkshopRatingSafety
+    ActorValue avWater = wsParent.WorkshopRatings[4].resourceValue      ; WorkshopRatingWater
+    ActorValue avPower = wsParent.WorkshopRatings[5].resourceValue      ; WorkshopRatingPower
+    ActorValue avBeds = wsParent.WorkshopRatings[6].resourceValue       ; WorkshopRatingBeds
+    ; These are at higher indices, use the named constants
+    ActorValue avLastAttack = wsParent.WorkshopRatings[12].resourceValue         ; WorkshopRatingLastAttackDaysSince
+    ActorValue avLastAttackFaction = wsParent.WorkshopRatings[23].resourceValue  ; WorkshopRatingLastAttackFaction
 
     ; Build pipe-delimited settlement context string
     string data = ""
     data += "name:" + loc.GetName()
     if avPopulation
-        int pop = wsRef.GetValue(avPopulation) as int
-        data += "|population:" + pop as String
-        ; Compute beds from population - missing beds
-        if avMissingBeds
-            int missing = wsRef.GetValue(avMissingBeds) as int
-            data += "|beds:" + (pop - missing) as String
-        endif
+        data += "|population:" + (wsRef.GetValue(avPopulation) as int) as String
+    endif
+    if avBeds
+        data += "|beds:" + (wsRef.GetValue(avBeds) as int) as String
     endif
     if avFood
         data += "|food:" + (wsRef.GetValue(avFood) as int) as String
