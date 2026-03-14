@@ -163,6 +163,7 @@ Note: "Sole Survivor" refers to the player ({player_name}).
 <context>
 Conversation with {player_name} ({trust}) in {location}.
 Time: {time} {time_group}. Language: {language}.
+{game_context}
 </context>
 
 <events>
@@ -192,10 +193,11 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
 
     @staticmethod
     def get_fallout4_multi_npc_prompt_config_value() -> ConfigValue:
-        fallout4_multi_npc_prompt = """The following is a conversation in {location} in the post-apocalyptic Commonwealth of Fallout between {names_w_player}. Here are their backgrounds: 
-                            {bios} 
-                            And here are their conversation histories: {conversation_summaries} 
+        fallout4_multi_npc_prompt = """The following is a conversation in {location} in the post-apocalyptic Commonwealth of Fallout between {names_w_player}. Here are their backgrounds:
+                            {bios}
+                            And here are their conversation histories: {conversation_summaries}
                             The time is {time} {time_group}.
+                            {game_context}
                             You are tasked with providing the responses for the NPCs. Please begin your response with an indication of who you are speaking as, for example: '{name}: Good evening.'. 
                             Please use your own discretion to decide who should speak in a given situation (sometimes responding with all NPCs is suitable). 
                             {actions}
