@@ -1206,7 +1206,8 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     ActorValue avRadio = wsParent.WorkshopRatings[9].resourceValue               ; WorkshopRatingRadio
     ActorValue avLastAttack = wsParent.WorkshopRatings[12].resourceValue         ; WorkshopRatingLastAttackDaysSince
     ActorValue avLastAttackFaction = wsParent.WorkshopRatings[23].resourceValue  ; WorkshopRatingLastAttackFaction
-    ActorValue avCaravan = wsParent.WorkshopRatings[34].resourceValue            ; WorkshopRatingCaravan
+    ; Note: WorkshopRatings[34] (Caravan AV) only counts provisioners originating FROM this settlement.
+    ; Use TradeCaravanWorkshops collection instead — it includes all workshops in the trade network.
 
     ; Build pipe-delimited settlement context string
     string data = ""
@@ -1247,8 +1248,11 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     if avRadio
         data += "|radio:" + (wsRef.GetValue(avRadio) as int) as String
     endif
-    if avCaravan
-        data += "|supply_lines:" + (wsRef.GetValue(avCaravan) as int) as String
+    ; Check if this workshop is in the trade caravan network
+    if wsParent.TradeCaravanWorkshops && wsParent.TradeCaravanWorkshops.Find(wsRef) >= 0
+        data += "|supply_lines:1"
+    else
+        data += "|supply_lines:0"
     endif
 
     F4SE_HTTP.setString(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_SETTLEMENT, data)
