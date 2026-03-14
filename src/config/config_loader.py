@@ -242,6 +242,8 @@ class ConfigLoader:
             self.max_response_sentences_multi = self.__definitions.get_int_value("max_response_sentences_multi")
             self.llm = self.__definitions.get_string_value("model")
             self.llm = self.llm.split(' |')[0] if ' |' in self.llm else self.llm
+            summary_model_raw = self.__definitions.get_string_value("summary_model")
+            self.summary_model: str | None = summary_model_raw.strip() if summary_model_raw and summary_model_raw.strip() else None
             self.wait_time_buffer = self.__definitions.get_float_value("wait_time_buffer")
             self.llm_api = self.__definitions.get_string_value("llm_api")
             # self.llm_priority = self.__definitions.get_string_value("llm_priority")

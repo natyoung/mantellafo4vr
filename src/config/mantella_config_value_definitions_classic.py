@@ -42,6 +42,7 @@ class MantellaConfigValueDefinitionsClassic:
         
         languagemodel_category = ConfigValueGroup("LanguageModel", "Language model", "Basic settings for the Large Language Model (LLM) Mantella uses to generate NPC responses", on_value_change_callback)
         languagemodel_category.add_config_value(LLMDefinitions.get_model_config_value())
+        languagemodel_category.add_config_value(LLMDefinitions.get_summary_model_config_value())
         # languagemodel_category.add_config_value(LLMDefinitions.get_max_response_sentences_config_value())
         result.append(languagemodel_category)
         

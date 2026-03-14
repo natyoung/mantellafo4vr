@@ -21,6 +21,7 @@ class RumorGenerator:
         self.__db = db
         self.__client = client
         self.__config = config
+        self.__summary_model: str | None = config.summary_model
         self.__language_name = language_name
 
     def maybe_generate(self, world_id: str, npc_name: str, npc_ref_id: str,
@@ -42,7 +43,7 @@ class RumorGenerator:
         thread = message_thread(self.__config, prompt)
         thread.add_message(UserMessage(self.__config, diary_content))
         with self.__client.override_params(max_tokens=500):
-            rumor_content = self.__client.request_call(thread)
+            rumor_content = self.__client.request_call(thread, model_override=self.__summary_model)
 
         if not rumor_content:
             logger.warning(f"Rumor generation failed for {npc_name} — LLM returned empty response")

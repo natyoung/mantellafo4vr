@@ -28,6 +28,7 @@ class Summaries(Remembering):
         self.__language_name: str = language_name
         self.__memory_prompt: str = config.memory_prompt
         self.__resummarize_prompt:str = config.resummarize_prompt
+        self.__summary_model: str | None = config.summary_model
         self.__db = getattr(game, 'conversation_db', None)
         self.__diary = DiaryConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
         self.__arc = ArcConsolidator(self.__db, client, config, language_name, game.game_name_in_filepath) if self.__db else None
@@ -307,7 +308,7 @@ class Summaries(Remembering):
             messages = message_thread(self.__config, prompt)
             messages.add_message(UserMessage(self.__config, text_to_summarize))
             with self.__client.override_params(max_tokens=1000):
-                summary = self.__client.request_call(messages)
+                summary = self.__client.request_call(messages, model_override=self.__summary_model)
             if not summary:
                 logger.error(f"Summarizing conversation failed.")
                 return ""

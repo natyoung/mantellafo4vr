@@ -55,6 +55,13 @@ class LLMDefinitions:
         return ConfigValueSelection("model","Model",model_description,"mistralai/mistral-small-3.1-24b-instruct:free",["Custom Model"], allows_values_not_in_options=True)
     
     @staticmethod
+    def get_summary_model_config_value() -> ConfigValue:
+        description = """Optional model to use for memory consolidation (conversation summaries, diary entries, character arcs).
+                        Leave blank to use the main model. Useful for using a smarter (but more expensive) model for important summaries
+                        while keeping a cheaper model for regular NPC dialogue. Example: anthropic/claude-sonnet-4.6"""
+        return ConfigValueString("summary_model", "Summary Model", description, "")
+
+    @staticmethod
     def get_llm_priority_config_value() -> ConfigValue:
         description = """(OpenRouter only) Select the priority of choosing an LLM service provider:
                         - Balanced (default): Prioritize the provider with the lowest price which has not experienced recent outages.

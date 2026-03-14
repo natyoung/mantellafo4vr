@@ -20,6 +20,7 @@ class ArcConsolidator:
         self.__db = db
         self.__client = client
         self.__config = config
+        self.__summary_model: str | None = config.summary_model
         self.__language_name = language_name
         self.__game_name = game_name
 
@@ -63,7 +64,7 @@ class ArcConsolidator:
         thread = message_thread(self.__config, prompt)
         thread.add_message(UserMessage(self.__config, combined_text))
         with self.__client.override_params(max_tokens=2000):
-            arc_content = self.__client.request_call(thread)
+            arc_content = self.__client.request_call(thread, model_override=self.__summary_model)
 
         if not arc_content:
             logger.warning(f"Arc consolidation failed for {npc_name} — LLM returned empty response")

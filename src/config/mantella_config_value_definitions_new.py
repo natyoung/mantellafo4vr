@@ -40,6 +40,7 @@ class MantellaConfigValueDefinitionsNew:
         llm_category = ConfigValueGroup("LLM", "Large Language Model", "Settings for the LLM providers and the LLMs themselves.", on_value_change_callback)
         llm_category.add_config_value(LLMDefinitions.get_llm_api_config_value())
         llm_category.add_config_value(LLMDefinitions.get_model_config_value())
+        llm_category.add_config_value(LLMDefinitions.get_summary_model_config_value())
         # llm_category.add_config_value(LLMDefinitions.get_llm_priority_config_value())
         llm_category.add_config_value(LLMDefinitions.get_max_response_sentences_single_config_value())
         llm_category.add_config_value(LLMDefinitions.get_max_response_sentences_multi_config_value())
