@@ -331,7 +331,7 @@ Do not use quotation marks. Write in {language}."""
     @staticmethod
     def get_vision_prompt_config_value() -> ConfigValue:
         vision_prompt_description = """The prompt passed to the vision-capable LLM when `Custom Vision Model` is enabled."""
-        vision_prompt = """This image is the player's point of view in {game}. Describe only the environment, objects, and characters visible in the scene. Ignore any HUD elements (gauges, dials, compass, health bars, text overlays, notifications) and ignore any bright green or yellow outlines/highlights around objects — those are game UI from workshop/building mode, not real glowing or radiation. Do not mention the game or that this is an image. Be brief (1-2 sentences)."""
+        vision_prompt = """This image is the player's point of view in {game}. Describe the environment, objects, and characters visible in the scene. People in the scene are living NPCs, not statues or mannequins. Common objects include: artillery cannons (large metal mortar-like weapons on wheeled frames), power armor (bulky mechanical suits), turrets (mounted guns), generators, water purifiers, guard posts, and brahmin (two-headed cows). Ignore HUD elements (gauges, compass, health bars, text overlays, notifications) and bright green/yellow outlines or grid patterns (workshop UI). Do not mention the game or that this is an image. Be brief (1-2 sentences)."""
         return ConfigValueString("vision_prompt","Vision Prompt",vision_prompt_description,vision_prompt)
     
     @staticmethod
