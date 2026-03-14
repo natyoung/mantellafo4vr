@@ -76,6 +76,22 @@ class TestSettlementContext:
         assert default_context._parse_settlement_context("") == ""
         assert default_context._parse_settlement_context(None) == ""
 
+    def test_recent_attack_with_faction(self, default_context: Context):
+        raw = "name:Covenant|population:8|food:10|water:8|defense:30|power:5|beds:8|happiness:65|last_attack_days:1|last_attack_by:Raiders"
+        result = default_context._parse_settlement_context(raw)
+        assert "attacked by Raiders yesterday" in result
+
+    def test_recent_attack_no_faction(self, default_context: Context):
+        raw = "name:Taffington Boathouse|population:4|food:5|water:6|defense:12|power:0|beds:4|happiness:55|last_attack_days:3"
+        result = default_context._parse_settlement_context(raw)
+        assert "attacked just a few days ago" in result
+        assert "by" not in result.split("attacked")[1].split(".")[0]  # no faction mentioned
+
+    def test_old_attack_ignored(self, default_context: Context):
+        raw = "name:Sanctuary Hills|population:12|food:16|water:14|defense:40|beds:12|happiness:78|last_attack_days:15"
+        result = default_context._parse_settlement_context(raw)
+        assert "attacked" not in result
+
     def test_zero_population(self, default_context: Context):
         raw = "name:Red Rocket|population:0|food:5|water:3|defense:10|beds:4|happiness:50"
         result = default_context._parse_settlement_context(raw)

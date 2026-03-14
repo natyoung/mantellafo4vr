@@ -1201,6 +1201,8 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     ActorValue avPopulation = Game.GetFormFromFile(0x0012723E, "Fallout4.esm") as ActorValue    ; WorkshopRatingPopulation
     ActorValue avMissingBeds = Game.GetFormFromFile(0x0012723B, "Fallout4.esm") as ActorValue   ; WorkshopRatingMissingBeds
     ActorValue avHappiness = Game.GetFormFromFile(0x00129157, "Fallout4.esm") as ActorValue     ; WorkshopRatingHappiness
+    ActorValue avLastAttack = Game.GetFormFromFile(0x00127239, "Fallout4.esm") as ActorValue   ; WorkshopRatingLastAttackDaysSince
+    ActorValue avLastAttackFaction = Game.GetFormFromFile(0x0012723A, "Fallout4.esm") as ActorValue ; WorkshopRatingLastAttackFaction
 
     ; Build pipe-delimited settlement context string
     string data = ""
@@ -1228,6 +1230,18 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     endif
     if avHappiness
         data += "|happiness:" + (wsRef.GetValue(avHappiness) as int) as String
+    endif
+    if avLastAttack
+        data += "|last_attack_days:" + (wsRef.GetValue(avLastAttack) as int) as String
+    endif
+    if avLastAttackFaction
+        float factionFormID = wsRef.GetValue(avLastAttackFaction)
+        if factionFormID > 0
+            Faction attackFaction = Game.GetForm(factionFormID as int) as Faction
+            if attackFaction && attackFaction.GetName() != ""
+                data += "|last_attack_by:" + attackFaction.GetName()
+            endif
+        endif
     endif
 
     F4SE_HTTP.setString(customValuesHandle, mConsts.KEY_CONTEXT_CUSTOMVALUES_SETTLEMENT, data)

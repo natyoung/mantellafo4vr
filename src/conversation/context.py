@@ -571,6 +571,19 @@ class Context:
         else:
             lines.append("Morale is terrible. Residents are miserable and may leave.")
 
+        # Recent attack
+        last_attack_days = int(state.get("last_attack_days", "-1"))
+        attacker = state.get("last_attack_by", "")
+        by_whom = f" by {attacker}" if attacker else ""
+        if last_attack_days == 0:
+            lines.append(f"The settlement was attacked{by_whom} today. People are shaken and on edge.")
+        elif last_attack_days == 1:
+            lines.append(f"The settlement was attacked{by_whom} yesterday. Residents are still rattled.")
+        elif 2 <= last_attack_days <= 3:
+            lines.append(f"The settlement was attacked{by_whom} just a few days ago. Tension is still high.")
+        elif 4 <= last_attack_days <= 7:
+            lines.append(f"There was an attack{by_whom} on the settlement recently, within the past week.")
+
         # Power (only mention if notable)
         if power > 0:
             lines.append(f"The settlement has {power} units of power generation.")
