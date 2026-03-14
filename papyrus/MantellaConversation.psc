@@ -1193,20 +1193,26 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
         return
     endif
 
-    ; Read workshop resource actor values by FormID
-    ActorValue avFood = Game.GetFormFromFile(0x000002E0, "Fallout4.esm") as ActorValue
-    ActorValue avWater = Game.GetFormFromFile(0x000002E1, "Fallout4.esm") as ActorValue
-    ActorValue avPower = Game.GetFormFromFile(0x000002E2, "Fallout4.esm") as ActorValue
-    ActorValue avDefense = Game.GetFormFromFile(0x000002E3, "Fallout4.esm") as ActorValue
-    ActorValue avPopulation = Game.GetFormFromFile(0x000002E4, "Fallout4.esm") as ActorValue
-    ActorValue avBeds = Game.GetFormFromFile(0x000002E5, "Fallout4.esm") as ActorValue
-    ActorValue avHappiness = Game.GetFormFromFile(0x000002E7, "Fallout4.esm") as ActorValue
+    ; Read workshop resource actor values by FormID (verified in FO4Edit)
+    ActorValue avFood = Game.GetFormFromFile(0x00127243, "Fallout4.esm") as ActorValue          ; WorkshopRatingTotalFood
+    ActorValue avWater = Game.GetFormFromFile(0x00127246, "Fallout4.esm") as ActorValue         ; WorkshopRatingTotalWater
+    ActorValue avPower = Game.GetFormFromFile(0x00127244, "Fallout4.esm") as ActorValue         ; WorkshopRatingTotalPower
+    ActorValue avDefense = Game.GetFormFromFile(0x00127245, "Fallout4.esm") as ActorValue       ; WorkshopRatingTotalSafety
+    ActorValue avPopulation = Game.GetFormFromFile(0x0012723E, "Fallout4.esm") as ActorValue    ; WorkshopRatingPopulation
+    ActorValue avMissingBeds = Game.GetFormFromFile(0x0012723B, "Fallout4.esm") as ActorValue   ; WorkshopRatingMissingBeds
+    ActorValue avHappiness = Game.GetFormFromFile(0x00129157, "Fallout4.esm") as ActorValue     ; WorkshopRatingHappiness
 
     ; Build pipe-delimited settlement context string
     string data = ""
     data += "name:" + loc.GetName()
     if avPopulation
-        data += "|population:" + (wsRef.GetValue(avPopulation) as int) as String
+        int pop = wsRef.GetValue(avPopulation) as int
+        data += "|population:" + pop as String
+        ; Compute beds from population - missing beds
+        if avMissingBeds
+            int missing = wsRef.GetValue(avMissingBeds) as int
+            data += "|beds:" + (pop - missing) as String
+        endif
     endif
     if avFood
         data += "|food:" + (wsRef.GetValue(avFood) as int) as String
@@ -1219,9 +1225,6 @@ Function BuildSettlementData(int customValuesHandle, Location loc)
     endif
     if avPower
         data += "|power:" + (wsRef.GetValue(avPower) as int) as String
-    endif
-    if avBeds
-        data += "|beds:" + (wsRef.GetValue(avBeds) as int) as String
     endif
     if avHappiness
         data += "|happiness:" + (wsRef.GetValue(avHappiness) as int) as String
