@@ -1170,7 +1170,7 @@ bool Function IsPlayerSettlement(Location loc)
     if !loc
         return false
     endif
-    Keyword workshopKeyword = Game.GetForm(0x00058AEA) as Keyword  ; LocTypeWorkshopSettlement
+    Keyword workshopKeyword = Game.GetForm(0x00083C9A) as Keyword  ; LocTypeWorkshopSettlement
     if !workshopKeyword || !loc.HasKeyword(workshopKeyword)
         return false
     endif
