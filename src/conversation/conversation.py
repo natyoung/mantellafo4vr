@@ -207,10 +207,13 @@ class Conversation:
             save_world_id = self.__context.world_id
             save_rememberer = self.__rememberer
             def _bg_save():
-                characters_object = Characters()
-                for npc in save_chars:
-                    characters_object.add_or_update_character(npc)
-                save_rememberer.save_conversation_state(save_messages, characters_object, save_world_id, True, None, None)
+                try:
+                    characters_object = Characters()
+                    for npc in save_chars:
+                        characters_object.add_or_update_character(npc)
+                    save_rememberer.save_conversation_state(save_messages, characters_object, save_world_id, True, None, None)
+                except Exception as e:
+                    logger.error(f"Background conversation save failed: {e}")
             threading.Thread(target=_bg_save, daemon=True, name="conv_save_bg").start()
         
         # Set LLM debug log path to the character's conversation folder
