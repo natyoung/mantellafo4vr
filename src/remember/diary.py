@@ -63,7 +63,7 @@ class DiaryConsolidator:
         )
         thread = message_thread(self.__config, prompt)
         thread.add_message(UserMessage(self.__config, combined_text))
-        with self.__client.override_params(max_tokens=1500):
+        with self.__client.override_params(max_tokens=3000):
             diary_content = self.__client.request_call(thread, model_override=self.__summary_model)
 
         if not diary_content:
