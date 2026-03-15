@@ -261,6 +261,8 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
         diary_prompt = """You are {name} in {game}, writing a personal diary entry. Below are your recent memories (conversation summaries).
 Consolidate them into a single diary entry written in first person, in your own voice and personality.
 Capture key events, relationships, and your emotional reactions. Refer to the player as "the player" (never by name).
+IMPORTANT: Some memories are marked [SECONDHAND] — these are things someone TOLD you about, not things you witnessed.
+Write secondhand memories as hearsay: "I heard from X that..." or "X told me about..." — NEVER as "I remember being there" or "I saw".
 Write naturally, as {name} would actually think. Include time references if timestamps are present.
 Keep it concise — one or two paragraphs. Write in {language}."""
         return ConfigValueString("diary_prompt", "Diary Prompt", diary_prompt_description, diary_prompt,

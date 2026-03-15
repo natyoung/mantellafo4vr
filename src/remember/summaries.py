@@ -191,7 +191,11 @@ class Summaries(Remembering):
                         participant_names.append(npc.name)
 
                 participants_text = ", ".join(participant_names) if participant_names else "others"
-                prefixed_summary = f"{sharer_name} shared with {recipient_name} a conversation with {participants_text}:\n{first_summary}"
+                prefixed_summary = (
+                    f"[SECONDHAND — {recipient_name} was NOT present for this. "
+                    f"{sharer_name} told {recipient_name} about a conversation with {participants_text}.]\n"
+                    f"{first_summary}"
+                )
 
                 base_recipient = utils.remove_trailing_number(recipient_name)
                 from_ts = self.__db.get_latest_summary_to_ts(world_id, base_recipient, recipient_ref_id) or 0.0
