@@ -507,14 +507,20 @@ class Context:
         if not state:
             return ""
 
+        def safe_int(val: str, default: int = 0) -> int:
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return default
+
         name = state.get("name", "this settlement")
-        pop = int(state.get("population", "0"))
-        food = int(state.get("food", "0"))
-        water = int(state.get("water", "0"))
-        defense = int(state.get("defense", "0"))
-        beds = int(state.get("beds", "0"))
-        happiness = int(state.get("happiness", "0"))
-        power = int(state.get("power", "0"))
+        pop = safe_int(state.get("population", "0"))
+        food = safe_int(state.get("food", "0"))
+        water = safe_int(state.get("water", "0"))
+        defense = safe_int(state.get("defense", "0"))
+        beds = safe_int(state.get("beds", "0"))
+        happiness = safe_int(state.get("happiness", "0"))
+        power = safe_int(state.get("power", "0"))
 
         lines = [f"You are at {name}, a settlement owned and built by the player."]
         lines.append(f"The settlement has {pop} residents.")
@@ -572,7 +578,7 @@ class Context:
             lines.append("Morale is terrible. Residents are miserable and may leave.")
 
         # Recent attack
-        last_attack_days = int(state.get("last_attack_days", "-1"))
+        last_attack_days = safe_int(state.get("last_attack_days", "-1"), -1)
         attacker = state.get("last_attack_by", "")
         by_whom = f" by {attacker}" if attacker else ""
         if last_attack_days == 0:
@@ -589,14 +595,14 @@ class Context:
             lines.append(f"The settlement has {power} units of power generation.")
 
         # Supply lines
-        supply_lines = int(state.get("supply_lines", "0"))
+        supply_lines = safe_int(state.get("supply_lines", "0"))
         if supply_lines > 0:
             lines.append("The settlement is connected to a supply network with other settlements, sharing resources.")
         elif pop > 5:
             lines.append("The settlement is isolated — no supply lines connect it to other settlements.")
 
         # Radio beacon (only mention sometimes — when it's contextually interesting)
-        radio = int(state.get("radio", "0"))
+        radio = safe_int(state.get("radio", "0"))
         if radio > 0 and pop < 5:
             lines.append("A radio beacon is broadcasting, trying to attract new settlers.")
         elif radio == 0 and pop < 3:

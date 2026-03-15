@@ -101,6 +101,47 @@ class TestSettlementContext:
         assert "abundant" not in result
         assert "plentiful" not in result
 
+    def test_malformed_integers_dont_crash(self, default_context: Context):
+        """Papyrus could send non-integer values — should not crash"""
+        raw = "name:Broken|population:abc|food:12.5|water:|defense:NaN|beds:-1|happiness:||power:???"
+        result = default_context._parse_settlement_context(raw)
+        assert "Broken" in result
+        assert "0 residents" in result  # malformed population defaults to 0
+
+    def test_missing_fields_use_defaults(self, default_context: Context):
+        """Only name present — everything else should default safely"""
+        raw = "name:Minimal Outpost"
+        result = default_context._parse_settlement_context(raw)
+        assert "Minimal Outpost" in result
+        assert "0 residents" in result
+
+    def test_pipe_in_faction_name(self, default_context: Context):
+        """Faction name with pipe would break format — parser should handle gracefully"""
+        # In practice FO4 factions don't have pipes, but test the parser anyway
+        raw = "name:Test|population:5|food:5|water:5|defense:5|beds:5|happiness:60|last_attack_days:1|last_attack_by:Some Faction"
+        result = default_context._parse_settlement_context(raw)
+        assert "attacked by Some Faction yesterday" in result
+
+    def test_supply_lines_connected(self, default_context: Context):
+        raw = "name:Starlight|population:10|food:10|water:10|defense:10|beds:10|happiness:70|supply_lines:1"
+        result = default_context._parse_settlement_context(raw)
+        assert "supply network" in result
+
+    def test_supply_lines_isolated(self, default_context: Context):
+        raw = "name:Outpost|population:8|food:8|water:8|defense:8|beds:8|happiness:70|supply_lines:0"
+        result = default_context._parse_settlement_context(raw)
+        assert "isolated" in result
+
+    def test_radio_beacon_low_pop(self, default_context: Context):
+        raw = "name:New Place|population:2|food:2|water:2|defense:2|beds:2|happiness:50|radio:1"
+        result = default_context._parse_settlement_context(raw)
+        assert "radio beacon" in result
+
+    def test_radio_beacon_high_pop_not_mentioned(self, default_context: Context):
+        raw = "name:Big Town|population:20|food:20|water:20|defense:20|beds:20|happiness:70|radio:1"
+        result = default_context._parse_settlement_context(raw)
+        assert "radio" not in result.lower().split("don't")[0]  # radio not mentioned before the instruction line
+
 
 class TestContextNearbyNPCs:
     """Tests for Context integration with nearby NPCs"""

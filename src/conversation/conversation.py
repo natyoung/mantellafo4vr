@@ -202,8 +202,9 @@ class Conversation:
             all_characters.extend(characters_removed_by_update)
             # Run save in background to avoid blocking the game with LLM summary calls
             import threading
+            from copy import deepcopy
             save_chars = list(all_characters)  # snapshot
-            save_messages = self.__messages  # message_thread object, passed directly
+            save_messages = deepcopy(self.__messages)  # deep copy to avoid race with main thread
             save_world_id = self.__context.world_id
             save_rememberer = self.__rememberer
             def _bg_save():
