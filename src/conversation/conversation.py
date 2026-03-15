@@ -203,7 +203,7 @@ class Conversation:
             # Run save in background to avoid blocking the game with LLM summary calls
             import threading
             save_chars = list(all_characters)  # snapshot
-            save_messages = list(self.__messages)
+            save_messages = self.__messages  # message_thread object, passed directly
             save_world_id = self.__context.world_id
             save_rememberer = self.__rememberer
             def _bg_save():
