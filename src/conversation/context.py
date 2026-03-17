@@ -514,6 +514,17 @@ class Context:
                 return default
 
         name = state.get("name", "this settlement")
+
+        # Locations that are technically settlements but shouldn't show settlement stats
+        # (military bases, robot lairs, etc.)
+        skip_settlement_entirely = {
+            "the mechanist's lair", "mechanist's lair",
+            "boston airport",
+            "home plate",
+        }
+        if name.lower() in skip_settlement_entirely:
+            return ""
+
         pop = safe_int(state.get("population", "0"))
         food = safe_int(state.get("food", "0"))
         water = safe_int(state.get("water", "0"))
@@ -522,18 +533,11 @@ class Context:
         happiness = safe_int(state.get("happiness", "0"))
         power = safe_int(state.get("power", "0"))
 
-        # Settlements where food/water stats are misleading (no plantable soil, etc.)
-        ignore_food_water = {
-            "the mechanist's lair", "mechanist's lair",
-            "boston airport",
-        }
-        skip_food_water = name.lower() in ignore_food_water
-
         lines = [f"You are at {name}, a settlement owned and built by the player."]
         lines.append(f"The settlement has {pop} residents.")
 
         # Food assessment
-        if pop > 0 and not skip_food_water:
+        if pop > 0:
             food_ratio = food / pop
             if food_ratio >= 1.5:
                 lines.append("Food is abundant — more than enough for everyone.")
@@ -545,7 +549,7 @@ class Context:
                 lines.append("Food is critically low. People are going hungry.")
 
         # Water assessment
-        if pop > 0 and not skip_food_water:
+        if pop > 0:
             water_ratio = water / pop
             if water_ratio >= 1.5:
                 lines.append("Clean water is plentiful.")
