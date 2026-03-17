@@ -522,11 +522,18 @@ class Context:
         happiness = safe_int(state.get("happiness", "0"))
         power = safe_int(state.get("power", "0"))
 
+        # Settlements where food/water stats are misleading (no plantable soil, etc.)
+        ignore_food_water = {
+            "the mechanist's lair", "mechanist's lair",
+            "boston airport",
+        }
+        skip_food_water = name.lower() in ignore_food_water
+
         lines = [f"You are at {name}, a settlement owned and built by the player."]
         lines.append(f"The settlement has {pop} residents.")
 
         # Food assessment
-        if pop > 0:
+        if pop > 0 and not skip_food_water:
             food_ratio = food / pop
             if food_ratio >= 1.5:
                 lines.append("Food is abundant — more than enough for everyone.")
@@ -538,7 +545,7 @@ class Context:
                 lines.append("Food is critically low. People are going hungry.")
 
         # Water assessment
-        if pop > 0:
+        if pop > 0 and not skip_food_water:
             water_ratio = water / pop
             if water_ratio >= 1.5:
                 lines.append("Clean water is plentiful.")
@@ -641,7 +648,11 @@ class Context:
         for npc in new_list_of_npcs:
             if not self.__npcs_in_conversation.contains_character(npc):
                 self.__npcs_in_conversation.add_or_update_character(npc)
-                #self.__ingame_events.append(f"{npc.name} has joined the conversation")
+                if not npc.is_player_character:
+                    if npc.is_generic_npc and npc.game_name != npc.prompt_name:
+                        self.__ingame_events.append(f"The {npc.game_name} nearby is named {npc.prompt_name}. {npc.prompt_name} has joined the conversation.")
+                    else:
+                        self.__ingame_events.append(f"{npc.prompt_name} has joined the conversation.")
                 self.__have_actors_changed = True
             else:
                 #check for updates in the transient stats and generate update events
@@ -679,9 +690,13 @@ class Context:
 
         old_settlement = self.__custom_context_values.get(communication_constants.KEY_CONTEXT_SETTLEMENT) if self.__custom_context_values else None
         new_settlement = custom_context_values.get(communication_constants.KEY_CONTEXT_SETTLEMENT) if custom_context_values else None
-        if new_settlement and new_settlement != old_settlement:
+        if new_settlement and not old_settlement:
+            # Only regenerate prompt when settlement data first arrives, not on minor stat changes
             self.__game_context_changed = True
             logger.info(f"Game context updated with settlement info: {new_settlement}")
+        elif new_settlement and new_settlement != old_settlement:
+            # Silently update stored values without triggering expensive prompt regeneration
+            logger.debug(f"Settlement stats updated (no prompt regen): {new_settlement}")
         
         self.__custom_context_values = custom_context_values
 
