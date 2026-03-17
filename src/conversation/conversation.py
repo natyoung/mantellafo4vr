@@ -897,7 +897,11 @@ class Conversation:
         self.__sentences.clear()
         self.__persist_new_messages()  # Final persist before ending
         if self.__conversation_db and self.__conversation_id:
-            self.__conversation_db.end_conversation(self.__conversation_id, game_days=end_timestamp)
+            # Use actual game_days from context; fall back to end_timestamp if provided
+            actual_game_days = end_timestamp
+            if actual_game_days is None and self.__context.game_days > 1:
+                actual_game_days = self.__context.game_days
+            self.__conversation_db.end_conversation(self.__conversation_id, game_days=actual_game_days)
         if async_save:
             Thread(target=self.__save_conversation, args=(False, end_timestamp), daemon=True).start()
         else:
