@@ -341,7 +341,7 @@ class ClientBase(AIClient):
                         **request_params,
                     )
                     first_chunk_timeout = 15.0  # seconds to wait for LLM to start responding
-                    chunk_timeout = 5.0  # seconds between chunks once streaming has started
+                    chunk_timeout = 10.0  # seconds between chunks once streaming has started
                     got_first_chunk = False
                     chunk_count = 0
                     last_finish_reason = None
