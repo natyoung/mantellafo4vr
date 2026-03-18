@@ -533,6 +533,10 @@ class GameStateManager:
                     custom_context_values = json[comm_consts.KEY_CONTEXT][comm_consts.KEY_CONTEXT_CUSTOMVALUES]
                     logger.debug(f"Custom context values received: {list(custom_context_values.keys()) if custom_context_values else []}")
 
+                # Suppress vision when player is in workshop mode (green overlay corrupts screenshots)
+                in_workshop = custom_context_values.get(comm_consts.KEY_CONTEXT_IS_IN_WORKSHOP_MODE, False) if custom_context_values else False
+                self.__client._suppress_vision = bool(in_workshop)
+
                 talk.update_context(location, time, ingame_events, weather, npcs_nearby, custom_context_values, config_settings, game_days)
     
     @utils.time_it

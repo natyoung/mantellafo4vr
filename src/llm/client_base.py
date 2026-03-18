@@ -56,7 +56,8 @@ class ClientBase(AIClient):
         self._image_client = None
         self._function_client = None
         self._enable_vision_next_call: bool = False
-        self._vision_mode: VisionMode = VisionMode.DISABLED 
+        self._vision_mode: VisionMode = VisionMode.DISABLED
+        self._suppress_vision: bool = False
 
         if 'https' in self._base_url: # Cloud LLM
             self._is_local: bool = False
@@ -101,6 +102,8 @@ class ClientBase(AIClient):
 
     def _should_enable_vision(self) -> bool:
         """Determine if vision should be enabled for this LLM call"""
+        if self._suppress_vision:
+            return False
         # Vision in always-on mode (Vision enabled and vision action is inactive)
         if self._vision_mode == VisionMode.ALWAYS_ON:
             return True

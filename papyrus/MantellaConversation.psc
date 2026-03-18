@@ -1575,6 +1575,7 @@ int Function BuildCustomContextValues()
     int handleCustomContextValues = F4SE_HTTP.createDictionary()
     F4SE_HTTP.setFloat(handleCustomContextValues, mConsts.KEY_CONTEXT_CUSTOMVALUES_PLAYERHEALTH, repository.PlayerRadFactoredHealth)
     F4SE_HTTP.setFloat(handleCustomContextValues, mConsts.KEY_CONTEXT_CUSTOMVALUES_PLAYERRAD, repository.PlayerRadiationPercent)
+    F4SE_HTTP.setBool(handleCustomContextValues, mConsts.KEY_CONTEXT_CUSTOMVALUES_IS_IN_WORKSHOP_MODE, repository.isInWorkshopMode)
     bool isVisionReady = repository.checkAndUpdateVisionPipeline()
     if isVisionReady
         F4SE_HTTP.setBool(handleCustomContextValues, mConsts.KEY_CONTEXT_CUSTOMVALUES_VISION_READY, isVisionReady)

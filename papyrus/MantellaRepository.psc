@@ -31,7 +31,7 @@ bool property hideVisionMenu auto Conditional
 bool property allowVision auto Conditional
 bool property allowVisionHints auto Conditional
 bool property hasPendingVisionCheck auto
-bool isInWorkshopMode = false
+bool property isInWorkshopMode = false auto
 string property visionResolution auto
 int property visionResize auto Conditional
 String property ActorsInCellArray auto

@@ -475,7 +475,6 @@ If you would prefer to run speech-to-text locally, please ensure the `Speech-to-
                             chunk_count = 0  # Reset counter
             
             except queue.Empty:
-                logger.debug('Queue is empty')
                 continue
             except Exception as e:
                 if self.__mic_input_process_error_count % self.__warning_frequency == 0:
