@@ -225,10 +225,10 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                                language = the selected language
                                                game = the game selected""" 
         memory_prompt = """Summarize this conversation from {name}'s perspective, as their personal memory. These conversations take place in {game}.
-                                            Write as if {name} is remembering what happened. Refer to the player as "the player" (never by name). Refer to {name} in first person (I, me, my).
+                                            Write as if {name} is remembering what happened. Refer to the player by name as {player_name}. Refer to {name} in first person (I, me, my).
                                             Ignore any mishearings or communication mixups. Text in brackets describes in-game events.
                                             Write a single paragraph in {language}."""
-        return ConfigValueString("memory_prompt","Memory Prompt",memory_prompt_description,memory_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game"])])
+        return ConfigValueString("memory_prompt","Memory Prompt",memory_prompt_description,memory_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game", "player_name"])])
     
     @staticmethod
     def get_memory_prompt_datetime_prefix_config_value() -> ConfigValue:
@@ -245,9 +245,9 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                                 language = the selected language
                                                 game = the game selected""" 
         resummarize_prompt = """Condense {name}'s memories into a single paragraph, written from {name}'s perspective (first person). These take place in {game}.
-                                            Each paragraph is a separate memory. Timestamps in square brackets indicate when each event occurred. Refer to the player as "the player" (never by name).
+                                            Each paragraph is a separate memory. Timestamps in square brackets indicate when each event occurred. Refer to the player by name as {player_name}.
                                             Preserve key events and relationships. Write in {language}."""
-        return ConfigValueString("resummarize_prompt","Resummarize Prompt",resummarize_prompt_description,resummarize_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game"])])
+        return ConfigValueString("resummarize_prompt","Resummarize Prompt",resummarize_prompt_description,resummarize_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game", "player_name"])])
     
     @staticmethod
     def get_diary_prompt_config_value() -> ConfigValue:
@@ -260,13 +260,13 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                          game = the game selected"""
         diary_prompt = """You are {name} in {game}, writing a personal diary entry. Below are your recent memories (conversation summaries).
 Consolidate them into a single diary entry written in first person, in your own voice and personality.
-Capture key events, relationships, and your emotional reactions. Refer to the player as "the player" (never by name).
+Capture key events, relationships, and your emotional reactions. Refer to the player by name as {player_name}.
 IMPORTANT: Some memories are marked [SECONDHAND] — these are things someone TOLD you about, not things you witnessed.
 Write secondhand memories as hearsay: "I heard from X that..." or "X told me about..." — NEVER as "I remember being there" or "I saw".
 Write naturally, as {name} would actually think. Include time references if timestamps are present.
 Keep it concise — one or two paragraphs. Write in {language}."""
         return ConfigValueString("diary_prompt", "Diary Prompt", diary_prompt_description, diary_prompt,
-                                 [PromptDefinitions.PromptChecker(["name", "language", "game"])])
+                                 [PromptDefinitions.PromptChecker(["name", "language", "game", "player_name"])])
 
     @staticmethod
     def get_diary_interval_days_config_value() -> ConfigValue:
@@ -295,10 +295,10 @@ Keep it concise — one or two paragraphs. Write in {language}."""
         arc_prompt = """You are {name} in {game}, reflecting on a significant chapter of your life. Below are your diary entries spanning this period.
 Write a character arc summary: How have you developed as a person? What major events shaped you?
 What relationships and conflicts define who you are now? Write as {name} looking back on this chapter.
-Keep it 3-5 paragraphs, narrative form. Refer to the player as "the player" (never by name).
+Keep it 3-5 paragraphs, narrative form. Refer to the player by name as {player_name}.
 Write in {language}."""
         return ConfigValueString("arc_prompt", "Character Arc Prompt", arc_prompt_description, arc_prompt,
-                                 [PromptDefinitions.PromptChecker(["name", "language", "game"])])
+                                 [PromptDefinitions.PromptChecker(["name", "language", "game", "player_name"])])
 
     @staticmethod
     def get_arc_interval_days_config_value() -> ConfigValue:

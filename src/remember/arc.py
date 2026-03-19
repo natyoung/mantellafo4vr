@@ -25,7 +25,7 @@ class ArcConsolidator:
         self.__game_name = game_name
 
     def maybe_consolidate(self, world_id: str, npc_name: str, npc_ref_id: str,
-                          current_game_days: float) -> bool:
+                          current_game_days: float, player_name: str = "the player") -> bool:
         """Check if arc consolidation is due and perform it if so.
 
         Requires BOTH thresholds to be met:
@@ -60,6 +60,7 @@ class ArcConsolidator:
             name=npc_name,
             language=self.__language_name,
             game=self.__game_name,
+            player_name=player_name,
         )
         thread = message_thread(self.__config, prompt)
         thread.add_message(UserMessage(self.__config, combined_text))
@@ -73,8 +74,8 @@ class ArcConsolidator:
         # Clean up LLM artifacts
         arc_content = arc_content.replace('The assistant', npc_name)
         arc_content = arc_content.replace('the assistant', npc_name)
-        arc_content = arc_content.replace('The user', 'The player')
-        arc_content = arc_content.replace('the user', 'the player')
+        arc_content = arc_content.replace('The user', player_name)
+        arc_content = arc_content.replace('the user', player_name)
 
         # Save character arc
         game_days_from = last_arc_days or 0.0

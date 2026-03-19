@@ -58,6 +58,9 @@ class Summaries(Remembering):
     @utils.time_it
     def _run_consolidation(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float):
         """Run diary → rumor → arc consolidation for all NPCs. Called from background thread."""
+        player_character = npcs_in_conversation.get_player_character()
+        player_name = player_character.name if player_character else "the player"
+
         for character in npcs_in_conversation.get_all_characters():
             if character.is_player_character:
                 continue
@@ -65,7 +68,7 @@ class Summaries(Remembering):
             try:
                 diary_created = False
                 if self.__diary:
-                    diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
+                    diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days, player_name)
 
                 if diary_created and self.__rumors:
                     latest_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)
@@ -76,7 +79,7 @@ class Summaries(Remembering):
                         )
 
                 if self.__arc:
-                    self.__arc.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days)
+                    self.__arc.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days, player_name)
             except Exception as e:
                 logger.warning(f"Background memory consolidation failed for {base_name}: {e}")
 
@@ -164,11 +167,15 @@ class Summaries(Remembering):
 
     @utils.time_it
     def save_conversation_state(self, messages: message_thread, npcs_in_conversation: Characters, world_id: str, is_reload=False, pending_shares: list[tuple[str, str, str]] | None = None, end_timestamp: float | None = None):
+        # Get player name for use in summaries
+        player_character = npcs_in_conversation.get_player_character()
+        player_name = player_character.name if player_character else "the player"
+
         # Generate a separate summary for each NPC from their own perspective
         first_summary = ''
         for npc in npcs_in_conversation.get_all_characters():
             if not npc.is_player_character:
-                summary = self.__create_new_conversation_summary(messages, npc.name, end_timestamp)
+                summary = self.__create_new_conversation_summary(messages, npc.name, end_timestamp, player_name)
                 if not first_summary and summary:
                     first_summary = summary
                 if len(summary) > 0:
@@ -176,7 +183,7 @@ class Summaries(Remembering):
                     from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, npc.ref_id) or 0.0
                     to_ts = time.time()
                     self.__db.save_summary(world_id, base_name, npc.ref_id, summary, from_ts, to_ts)
-                    self.__check_db_summary_overflow(world_id, base_name, npc.ref_id, npc.name)
+                    self.__check_db_summary_overflow(world_id, base_name, npc.ref_id, npc.name, player_name)
 
         # Handle pending shares (use first NPC's summary as the shared version)
         if pending_shares and len(first_summary) > 0:
@@ -203,16 +210,17 @@ class Summaries(Remembering):
                 logger.info(f"Shared conversation summary with {recipient_name}")
 
     @utils.time_it
-    def __create_new_conversation_summary(self, messages: message_thread, npc_name: str, end_timestamp: float | None = None) -> str:
+    def __create_new_conversation_summary(self, messages: message_thread, npc_name: str, end_timestamp: float | None = None, player_name: str = "the player") -> str:
         prompt = self.__memory_prompt.format(
                     name=npc_name,
                     language=self.__language_name,
-                    game=self.__game.game_name_in_filepath
+                    game=self.__game.game_name_in_filepath,
+                    player_name=player_name,
                 )
         while True:
             try:
                 if len(messages) >= 5:
-                    summary = self.summarize_conversation(messages.transform_to_dict_representation(messages.get_talk_only()), prompt, npc_name)
+                    summary = self.summarize_conversation(messages.transform_to_dict_representation(messages.get_talk_only()), prompt, npc_name, player_name)
                     # Prepend timestamp to summary if available
                     if summary and end_timestamp is not None and self.__config.memory_prompt_datetime_prefix:
                         timestamp_prefix = self.__format_timestamp(end_timestamp)
@@ -227,7 +235,7 @@ class Summaries(Remembering):
                 continue
         return ""
 
-    def __check_db_summary_overflow(self, world_id: str, base_name: str, ref_id: str, npc_name: str):
+    def __check_db_summary_overflow(self, world_id: str, base_name: str, ref_id: str, npc_name: str, player_name: str = "the player"):
         """If total DB summaries exceed token limit, condense them."""
         if not self.__db:
             return
@@ -242,9 +250,10 @@ class Summaries(Remembering):
             prompt = self.__resummarize_prompt.format(
                 name=npc_name,
                 language=self.__language_name,
-                game=self.__game.game_name_in_filepath
+                game=self.__game.game_name_in_filepath,
+                player_name=player_name,
             )
-            condensed = self.summarize_conversation(combined, prompt, npc_name)
+            condensed = self.summarize_conversation(combined, prompt, npc_name, player_name)
             if condensed:
                 self.__db.replace_summaries(world_id, base_name, ref_id, condensed)
 
@@ -252,6 +261,9 @@ class Summaries(Remembering):
         """Recover and summarize messages from crashed conversations (orphans)."""
         if not self.__db:
             return
+
+        player_character = npcs_in_conversation.get_player_character()
+        player_name = player_character.name if player_character else "the player"
 
         for character in npcs_in_conversation.get_all_characters():
             if character.is_player_character:
@@ -272,16 +284,17 @@ class Summaries(Remembering):
             # Build text representation for summarization
             text_lines = []
             for msg in unsummarized:
-                role_label = "Player" if msg["role"] == "user" else base_name
+                role_label = player_name if msg["role"] == "user" else base_name
                 text_lines.append(f"{role_label}: {msg['content']}")
             text_to_summarize = "\n".join(text_lines)
 
             prompt = self.__memory_prompt.format(
                 name=base_name,
                 language=self.__language_name,
-                game=self.__game.game_name_in_filepath
+                game=self.__game.game_name_in_filepath,
+                player_name=player_name,
             )
-            summary = self.summarize_conversation(text_to_summarize, prompt, base_name)
+            summary = self.summarize_conversation(text_to_summarize, prompt, base_name, player_name)
             if summary:
                 from_ts = self.__db.get_latest_summary_to_ts(world_id, base_name, ref_id) or 0.0
                 self.__db.save_summary(world_id, base_name, ref_id, summary, from_ts, time.time())
@@ -306,7 +319,7 @@ class Summaries(Remembering):
         return f"[Day {days}, {in_game_time_twelve_hour} {utils.get_time_group(hours)}]"
 
     @utils.time_it
-    def summarize_conversation(self, text_to_summarize: str, prompt: str, npc_name: str) -> str:
+    def summarize_conversation(self, text_to_summarize: str, prompt: str, npc_name: str, player_name: str = "the player") -> str:
         summary = ''
         if len(text_to_summarize) > 5:
             messages = message_thread(self.__config, prompt)
@@ -321,8 +334,8 @@ class Summaries(Remembering):
             summary = summary.replace('the assistant', npc_name)
             summary = summary.replace('an assistant', npc_name)
             summary = summary.replace('an AI assistant', npc_name)
-            summary = summary.replace('The user', 'The player')
-            summary = summary.replace('the user', 'the player')
+            summary = summary.replace('The user', player_name)
+            summary = summary.replace('the user', player_name)
             summary += '\n\n'
 
             logger.log(self.loglevel, f'Conversation summary: {summary.strip()}')
