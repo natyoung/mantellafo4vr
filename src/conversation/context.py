@@ -236,6 +236,11 @@ class Context:
             if role_info:
                 sections.append("=== YOUR RELATIONSHIP WITH PLAYER ===\n" + role_info)
         
+        # === NPC-TO-NPC FAMILIARITY ===
+        npc_familiarity = self._get_npc_familiarity()
+        if npc_familiarity:
+            sections.append("=== NPC RELATIONSHIPS ===\n" + npc_familiarity)
+
         # === QUESTS ===
         quest_context = self.get_custom_context_value(communication_constants.KEY_CONTEXT_NPC_QUESTS)
         if quest_context:
@@ -243,7 +248,7 @@ class Context:
             parsed = build_quest_context(quest_context)
             if parsed:
                 sections.append("=== QUESTS ===\n" + parsed)
-        
+
         return "\n\n".join(sections)
     
     def _parse_player_state(self, raw: str) -> str:
@@ -884,7 +889,42 @@ class Context:
             relationships.append(f"{trust} of {npc.prompt_name}")
         
         return Context.format_listing(relationships)
-       
+
+    def _get_npc_familiarity(self) -> str:
+        """Build NPC-to-NPC relationship text based on shared conversation history."""
+        if not self.__conversation_db:
+            return ""
+
+        npcs = [npc for npc in self.get_characters_excluding_player().get_all_characters() if not npc.is_player_character]
+        if len(npcs) < 2:
+            return ""
+
+        lines = []
+        seen_pairs = set()
+        for i, npc_a in enumerate(npcs):
+            name_a = utils.remove_trailing_number(npc_a.name)
+            for npc_b in npcs[i+1:]:
+                name_b = utils.remove_trailing_number(npc_b.name)
+                pair_key = tuple(sorted([name_a, name_b]))
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+
+                count = self.__conversation_db.get_shared_conversation_count(
+                    self.__world_id, name_a, name_b
+                )
+                prompt_a = npc_a.prompt_name or name_a
+                prompt_b = npc_b.prompt_name or name_b
+                if count >= 10:
+                    lines.append(f"{prompt_a} and {prompt_b} know each other well — they've talked many times.")
+                elif count >= 5:
+                    lines.append(f"{prompt_a} and {prompt_b} are familiar with each other.")
+                elif count >= 2:
+                    lines.append(f"{prompt_a} and {prompt_b} have spoken a few times before.")
+                # count 0-1: strangers, don't mention
+
+        return "\n".join(lines)
+
     @utils.time_it
     def get_character_names_as_text(self, include_player: bool, include_nearby: bool = False, nearby_only: bool = False) -> str:
         """Gets the names of the NPCs in the conversation as a natural language list

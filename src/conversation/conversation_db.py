@@ -193,6 +193,18 @@ class ConversationDB:
         )
         return cur.fetchone()[0]
 
+    def get_shared_conversation_count(self, world_id: str, npc1_name: str, npc2_name: str) -> int:
+        """Count conversations where both NPCs participated (excluding player messages)."""
+        cur = self.conn.execute(
+            """SELECT COUNT(DISTINCT m1.conversation_id)
+               FROM messages m1
+               JOIN messages m2 ON m1.conversation_id = m2.conversation_id
+               WHERE m1.world_id = ? AND m1.npc_name = ? AND m2.npc_name = ?""",
+            (world_id, npc1_name, npc2_name),
+        )
+        row = cur.fetchone()
+        return row[0] if row else 0
+
     def get_unsummarized_messages(self, world_id: str, npc_name: str, npc_ref_id: str) -> list[dict]:
         latest_to_ts = self.get_latest_summary_to_ts(world_id, npc_name, npc_ref_id)
         if latest_to_ts is not None:
