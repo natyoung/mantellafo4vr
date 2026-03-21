@@ -194,6 +194,29 @@ Event Ontimer( int TimerID)
                         float distanceBetweenActors = Actor1.GetDistance(Actor2)
                         if (distanceBetweenActors <= 1000)
                             MantellaSpell.Cast(Actor2 as ObjectReference, Actor1 as ObjectReference)
+                            ; After starting 2-NPC conversation, randomly add 0-3 nearby NPCs
+                            Utility.Wait(0.5) ; let conversation initialize
+                            if conversation.IsRunning()
+                                Actor[] nearby = repository.ScanAndReturnNearbyActors(MantellaNPCCollectionQuest, MantellaNPCCollection, false)
+                                ; Shuffle and pick up to 3 extras
+                                int extras = Utility.RandomInt(0, 3)
+                                int added = 0
+                                int attempts = 0
+                                while added < extras && attempts < nearby.Length
+                                    int pick = Utility.RandomInt(0, nearby.Length - 1)
+                                    Actor candidate = nearby[pick]
+                                    if candidate && candidate != Actor1 && candidate != Actor2 && candidate != game.getplayer()
+                                        float dist = Actor1.GetDistance(candidate)
+                                        if dist <= 1000
+                                            Actor[] toAdd = new Actor[1]
+                                            toAdd[0] = candidate
+                                            conversation.AddActorsToConversation(toAdd)
+                                            added += 1
+                                        endif
+                                    endif
+                                    attempts += 1
+                                endwhile
+                            endif
                         endIf
                     endIf
                 endIf

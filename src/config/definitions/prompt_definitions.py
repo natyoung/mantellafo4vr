@@ -358,7 +358,7 @@ Do not use quotation marks. Write in {language}."""
     def get_radiant_end_prompt_config_value() -> ConfigValue:
         radiant_end_prompt_description = """The final prompt sent to the LLM before ending a radiant conversation.
                                             This prompt is used to guide the LLM to end the conversation naturally.""" 
-        radiant_end_prompt = """Please wrap up the current topic between the NPCs in a natural way. Nobody is leaving, so there is no need for formal goodbyes."""
+        radiant_end_prompt = """Wrap up the current topic naturally — trail off, change subject, or simply go quiet. Do NOT say goodbye, farewell, see you later, take care, or any parting phrase. Nobody is leaving. Just let the conversation end mid-flow, the way real conversations do when people are still standing next to each other."""
         return ConfigValueString("radiant_end_prompt","Radiant End Prompt",radiant_end_prompt_description,radiant_end_prompt,[PromptDefinitions.PromptChecker([])])
     
     @staticmethod
