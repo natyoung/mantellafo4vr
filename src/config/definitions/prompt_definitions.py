@@ -226,6 +226,8 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                                game = the game selected""" 
         memory_prompt = """Summarize this conversation from {name}'s perspective, as their personal memory. These conversations take place in {game}.
                                             Write as if {name} is remembering what happened. Refer to the player by name as {player_name}. Refer to {name} in first person (I, me, my).
+                                            IMPORTANT: You ARE {name}. Your name is {name}, NOT {player_name}. {player_name} is the player character.
+                                            Only include things {name} personally said, did, or directly experienced. If other NPCs discussed topics among themselves, only mention what {name} reacted to.
                                             Ignore any mishearings or communication mixups. Text in brackets describes in-game events.
                                             Write a single paragraph in {language}."""
         return ConfigValueString("memory_prompt","Memory Prompt",memory_prompt_description,memory_prompt,[PromptDefinitions.PromptChecker(["name", "language", "game", "player_name"])])
@@ -260,6 +262,7 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
                                          game = the game selected"""
         diary_prompt = """You are {name} in {game}, writing a personal diary entry. Below are your recent memories (conversation summaries).
 Consolidate them into a single diary entry written in first person, in your own voice and personality.
+IMPORTANT: You ARE {name}. Your name is {name}, NOT {player_name}. {player_name} is the player character — a different person.
 Capture key events, relationships, and your emotional reactions. Refer to the player by name as {player_name}.
 IMPORTANT: Some memories are marked [SECONDHAND] — these are things someone TOLD you about, not things you witnessed.
 Write secondhand memories as hearsay: "I heard from X that..." or "X told me about..." — NEVER as "I remember being there" or "I saw".

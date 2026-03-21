@@ -212,6 +212,7 @@ class Context:
         # === SETTLEMENT ===
         settlement_context = self.get_custom_context_value(communication_constants.KEY_CONTEXT_SETTLEMENT)
         if settlement_context:
+            logger.debug(f"Raw settlement data: {settlement_context}")
             settlement_info = self._parse_settlement_context(settlement_context)
             if settlement_info:
                 sections.append("=== SETTLEMENT ===\n" + settlement_info)
@@ -571,12 +572,14 @@ class Context:
             else:
                 lines.append("The settlement is barely defended. Residents are anxious about raids.")
 
-        # Beds
+        # Beds (workshop bed count can be unreliable — only flag major shortages)
         if pop > 0:
             if beds >= pop:
                 lines.append("Everyone has a place to sleep.")
+            elif beds >= pop - 2:
+                pass  # Minor discrepancy, likely workshop counting error — don't mention
             else:
-                lines.append(f"There aren't enough beds — {pop - beds} people sleep on the ground.")
+                lines.append("Some settlers don't have proper beds.")
 
         # Happiness
         if happiness >= 80:

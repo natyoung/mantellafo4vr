@@ -68,7 +68,7 @@ class TestSettlementContext:
         assert "going hungry" in result  # food 2/6 < 0.5
         assert "critically short" in result  # water 2/6 < 0.5
         assert "barely defended" in result  # defense 2 < 6*0.5
-        assert "3 people sleep on the ground" in result  # 6-3=3
+        assert "proper beds" in result  # beds 3 < pop 6 - 2
         assert "miserable" in result  # happiness 35 < 40
         assert "power" not in result.split("don't")[0] or "0 units" not in result  # power=0 not mentioned
 
