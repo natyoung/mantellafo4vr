@@ -16,7 +16,7 @@ class LanguageDefinitions:
     
     @staticmethod
     def get_goodbye_npc_response() -> ConfigValue:
-        return ConfigValueString("goodbye_npc_response","NPC Response: Goodbye","The response the NPC gives at the end of the conversation.","Safe travels",tags=[ConfigValueTag.advanced,ConfigValueTag.share_row])
+        return ConfigValueString("goodbye_npc_response","NPC Response: Goodbye","Comma-separated list of goodbye responses. One is picked at random each time.","Safe travels, Watch yourself out there, Stay sharp, Take it easy, Until next time, Be seeing you, Keep your head down, Don't be a stranger",tags=[ConfigValueTag.advanced,ConfigValueTag.share_row])
 
     @staticmethod
     def get_collecting_thoughts_npc_response() -> ConfigValue:

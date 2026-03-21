@@ -1,5 +1,6 @@
 from enum import Enum
 from threading import Thread, Lock
+import random
 import time
 from typing import Any
 from src.llm.ai_client import AIClient
@@ -401,7 +402,7 @@ class Conversation:
                     self.__stt.start_listening(self.__get_mic_prompt())
                 
                 # Use timeout if enabled, max count not reached, and Listen mode not active
-                use_silence_timeout = (self.__silence_auto_response_enabled and 
+                use_silence_timeout = (self.__silence_auto_response_enabled and
                                        self.__silence_auto_response_count < self.__silence_auto_response_max_count and
                                        not listen_mode_active)
                 silence_timeout = self.__silence_auto_response_timeout if use_silence_timeout else 0
@@ -797,10 +798,12 @@ class Conversation:
             if self.__stt:
                 self.__stt.stop_listening()
                 self.__allow_mic_input = False
-            # say goodbyes
+            # say goodbyes (pick random from comma-separated list)
             npc = self.__context.npcs_in_conversation.last_added_character
             if npc:
-                goodbye_sentence = self.__output_manager.generate_sentence(SentenceContent(npc, config.goodbye_npc_response, SentenceTypeEnum.SPEECH, True))
+                goodbyes = [g.strip() for g in config.goodbye_npc_response.split(",") if g.strip()]
+                goodbye_text = random.choice(goodbyes) if goodbyes else config.goodbye_npc_response
+                goodbye_sentence = self.__output_manager.generate_sentence(SentenceContent(npc, goodbye_text, SentenceTypeEnum.SPEECH, True))
                 if goodbye_sentence:
                     goodbye_sentence.actions.append({'identifier': comm_consts.ACTION_ENDCONVERSATION})
                     self.__sentences.put(goodbye_sentence)
@@ -943,8 +946,10 @@ class Conversation:
         if not self.__has_already_ended:            
             self.__stop_generation()
             self.__sentences.clear()            
-            # say goodbye
-            goodbye_sentence = self.__output_manager.generate_sentence(SentenceContent(npc, self.__context.config.goodbye_npc_response, SentenceTypeEnum.SPEECH, False))
+            # say goodbye (pick random from comma-separated list)
+            goodbyes = [g.strip() for g in self.__context.config.goodbye_npc_response.split(",") if g.strip()]
+            goodbye_text = random.choice(goodbyes) if goodbyes else self.__context.config.goodbye_npc_response
+            goodbye_sentence = self.__output_manager.generate_sentence(SentenceContent(npc, goodbye_text, SentenceTypeEnum.SPEECH, False))
             if goodbye_sentence:
                 goodbye_sentence.actions.append({'identifier':comm_consts.ACTION_REMOVECHARACTER})
                 self.__sentences.put(goodbye_sentence)        
