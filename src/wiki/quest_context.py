@@ -153,10 +153,14 @@ class QuestContextBuilder:
             if stages_text:
                 sections.append(stages_text)
             
-            # Walkthrough
-            narrative = self._extract_narrative(wiki)
-            if narrative:
-                sections.append(f"Walkthrough:\n{narrative}")
+            # Walkthrough — only for quests in early stages where context helps.
+            # For quests in progress, the walkthrough describes future events that
+            # the LLM will confuse with things that already happened.
+            # Stage stages are sufficient for in-progress quests.
+            if stage <= 10:
+                narrative = self._extract_narrative(wiki)
+                if narrative:
+                    sections.append(f"Walkthrough:\n{narrative}")
             
             return "\n".join(sections) if sections else ""
         except Exception as e:
@@ -240,7 +244,9 @@ class QuestContextBuilder:
             elif num == current_stage:
                 marker = "[CURRENT]"
             else:
-                marker = "[UPCOMING]"
+                # Skip upcoming stages — the LLM treats them as spoilers
+                # or confuses them with events that already happened
+                continue
             lines.append(f"  {marker} Stage {num}: {log}")
         
         return "\n".join(lines)
