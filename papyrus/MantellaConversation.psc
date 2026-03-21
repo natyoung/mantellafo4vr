@@ -1536,6 +1536,35 @@ int Function BuildCustomActorValues(Actor actorToBuildCustomValuesFor)
     int handleCustomActorValues = F4SE_HTTP.createDictionary()
     F4SE_HTTP.setFloat(handleCustomActorValues, mConsts.KEY_ACTOR_CUSTOMVALUES_POSX, actorToBuildCustomValuesFor.getpositionX())
     F4SE_HTTP.setFloat(handleCustomActorValues, mConsts.KEY_ACTOR_CUSTOMVALUES_POSY, actorToBuildCustomValuesFor.getpositionY())
+    ; Detect settler job assignment
+    WorkshopNPCScript npcWS = actorToBuildCustomValuesFor as WorkshopNPCScript
+    if npcWS
+        string job = ""
+        if npcWS.bIsGuard
+            job = "guard"
+        elseif npcWS.bIsScavenger
+            job = "scavenger"
+        elseif npcWS.bIsWorker
+            job = "worker"
+        endif
+        ; Try to identify specific work object
+        if npcWS.bIsWorker
+            WorkshopParentScript wsParent = (Game.GetForm(0x0002058E) as Quest) as WorkshopParentScript
+            if wsParent
+                ObjectReference workObj = actorToBuildCustomValuesFor.GetLinkedRef(wsParent.WorkshopLinkWork)
+                if workObj
+                    string objName = workObj.GetDisplayName()
+                    if objName != ""
+                        job = job + " (" + objName + ")"
+                    endif
+                endif
+            endif
+        endif
+        if job != ""
+            F4SE_HTTP.setString(handleCustomActorValues, "mantella_actor_job", job)
+        endif
+        Debug.Trace("[Mantella] NPC job: " + actorToBuildCustomValuesFor.GetDisplayName() + " | isWorker=" + npcWS.bIsWorker + " isGuard=" + npcWS.bIsGuard + " isScavenger=" + npcWS.bIsScavenger + " job=" + job)
+    endif
     return handleCustomActorValues
 EndFunction
 

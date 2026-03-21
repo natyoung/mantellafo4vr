@@ -211,7 +211,7 @@ class Character:
         return self.__equipment
 
     def get_custom_character_value(self, key: str) -> Any:
-        if self.__custom_character_values.__contains__(key):
+        if self.__custom_character_values and key in self.__custom_character_values:
             return self.__custom_character_values[key]
         return None
     

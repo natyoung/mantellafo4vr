@@ -236,6 +236,15 @@ class Context:
             if role_info:
                 sections.append("=== YOUR RELATIONSHIP WITH PLAYER ===\n" + role_info)
         
+        # === SETTLER JOBS ===
+        job_lines = []
+        for npc in self.get_characters_excluding_player().get_all_characters():
+            job = npc.get_custom_character_value("mantella_actor_job")
+            if job:
+                job_lines.append(f"{npc.prompt_name} works as a {job} at this settlement.")
+        if job_lines:
+            sections.append("=== SETTLER JOBS ===\n" + "\n".join(job_lines))
+
         # === NPC-TO-NPC FAMILIARITY ===
         npc_familiarity = self._get_npc_familiarity()
         if npc_familiarity:
