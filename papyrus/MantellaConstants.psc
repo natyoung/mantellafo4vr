@@ -25,6 +25,7 @@ string property KEY_REQUESTTYPE_STARTCONVERSATION = "mantella_start_conversation
 string property KEY_REQUESTTYPE_CONTINUECONVERSATION = "mantella_continue_conversation" auto
 string property KEY_REQUESTTYPE_PLAYERINPUT = "mantella_player_input" auto
 string property KEY_REQUESTTYPE_ENDCONVERSATION = "mantella_end_conversation" auto
+string property KEY_ENDCONVERSATION_TIMESTAMP = "mantella_end_timestamp" auto
 
 string property KEY_REPLYTTYPE_STARTCONVERSATIONCOMPLETED = "mantella_start_conversation_completed" auto
 

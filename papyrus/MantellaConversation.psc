@@ -408,6 +408,7 @@ Function EndConversation()
     _hasBeenStopped=true
     int handle = F4SE_HTTP.createDictionary()
     F4SE_HTTP.setString(handle, mConsts.KEY_REQUESTTYPE,mConsts.KEY_REQUESTTYPE_ENDCONVERSATION)
+    F4SE_HTTP.setFloat(handle, mConsts.KEY_ENDCONVERSATION_TIMESTAMP, Utility.GetCurrentGameTime())
     sendHTTPRequest(handle,mConsts.HTTP_ROUTE_MAIN,mConsts.KEY_REQUESTTYPE_ENDCONVERSATION)
 EndFunction
 
