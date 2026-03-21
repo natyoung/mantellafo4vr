@@ -562,6 +562,17 @@ class GameStateManager:
             game_name: str = character_name  # preserve original game name for Papyrus
             gender: int = int(json[comm_consts.KEY_ACTOR_GENDER])
             race: str = str(json[comm_consts.KEY_ACTOR_RACE])
+
+            # Filter out non-conversational actors (turrets, traps, etc.)
+            _NON_CONVERSATIONAL_RACES = {'turrettripod', 'turretbubble', 'turret'}
+            race_clean = race.split('<')[1].split('>')[0].split('(')[0].strip().lower() if '<' in race else race.lower()
+            # Strip trailing "Race" suffix (e.g. "TurretTripodRace" -> "turrettripod")
+            if race_clean.endswith('race'):
+                race_clean = race_clean[:-4]
+            if race_clean in _NON_CONVERSATIONAL_RACES:
+                logger.info(f"Skipping non-conversational actor '{character_name}' (race: {race})")
+                return None
+
             actor_voice_model: str = str(json[comm_consts.KEY_ACTOR_VOICETYPE])
             ingame_voice_model: str = actor_voice_model.split('<')[1].split('>')[0]
             is_in_combat: bool = bool(json[comm_consts.KEY_ACTOR_ISINCOMBAT])

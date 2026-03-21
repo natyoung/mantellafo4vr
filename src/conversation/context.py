@@ -148,7 +148,7 @@ class Context:
         if self.__custom_context_values and key in self.__custom_context_values:
             return self.__custom_context_values[key]
         return None
-    
+
     def get_game_context(self, days_since_last_spoke: float | None = None) -> str:
         """Build complete game context string from custom context values.
 
@@ -878,7 +878,7 @@ class Context:
         relationships = []
         for npc in self.get_characters_excluding_player().get_all_characters():
             trust = self.__get_trust(npc)
-            relationships.append(f"{trust} to {npc.prompt_name}")
+            relationships.append(f"{trust} of {npc.prompt_name}")
         
         return Context.format_listing(relationships)
        

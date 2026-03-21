@@ -286,6 +286,10 @@ class TTSable(ABC):
 
             if not skip_lip_generation:
                 generate_facefx_lip_file(self._facefx_path, wav_file, lip_file, voiceline, self._game.base_game.display_name)
+                # If lip generation failed, fall back to placeholder so FUZ can still be created
+                if not os.path.exists(lip_file):
+                    logger.warning(f"Lip generation failed, using placeholder for FUZ creation")
+                    copy_placeholder_lip_file(lip_file, self._game.base_game.display_name)
             else:
                 copy_placeholder_lip_file(lip_file, self._game.base_game.display_name)
 
