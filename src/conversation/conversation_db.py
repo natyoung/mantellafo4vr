@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS diary_entries (
     game_days_to REAL NOT NULL,
     summaries_from_ts REAL NOT NULL,
     summaries_to_ts REAL NOT NULL,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    location TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id);
@@ -292,20 +293,21 @@ class ConversationDB:
 
     def save_diary_entry(self, world_id: str, npc_name: str, npc_ref_id: str,
                          content: str, game_days_from: float, game_days_to: float,
-                         summaries_from_ts: float, summaries_to_ts: float):
+                         summaries_from_ts: float, summaries_to_ts: float,
+                         location: str = ""):
         self.conn.execute(
             """INSERT INTO diary_entries
                (world_id, npc_name, npc_ref_id, content, game_days_from, game_days_to,
-                summaries_from_ts, summaries_to_ts, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                summaries_from_ts, summaries_to_ts, created_at, location)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (world_id, npc_name, npc_ref_id, content, game_days_from, game_days_to,
-             summaries_from_ts, summaries_to_ts, time.time()),
+             summaries_from_ts, summaries_to_ts, time.time(), location or None),
         )
         self.conn.commit()
 
     def get_all_diary_entries(self, world_id: str, npc_name: str, npc_ref_id: str) -> list[dict]:
         cur = self.conn.execute(
-            """SELECT content, game_days_from, game_days_to, summaries_from_ts, summaries_to_ts, created_at
+            """SELECT content, game_days_from, game_days_to, summaries_from_ts, summaries_to_ts, created_at, location
                FROM diary_entries
                WHERE world_id = ? AND npc_name = ? AND npc_ref_id = ?
                ORDER BY game_days_to""",
@@ -520,6 +522,12 @@ class ConversationDB:
                 );
                 CREATE INDEX IF NOT EXISTS idx_diary_npc ON diary_entries(world_id, npc_name, npc_ref_id, game_days_to);
             """)
+            self._conn.commit()
+        # Add location column to diary_entries if missing
+        try:
+            self._conn.execute("SELECT location FROM diary_entries LIMIT 1")
+        except sqlite3.OperationalError:
+            self._conn.execute("ALTER TABLE diary_entries ADD COLUMN location TEXT")
             self._conn.commit()
         # character_arcs table migration for older DBs
         try:

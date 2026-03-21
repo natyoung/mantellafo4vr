@@ -41,7 +41,7 @@ class Summaries(Remembering):
     MAX_RUMORS = 3
     RECENT_GUARANTEED = 2  # Most recent memories always included per tier
 
-    def run_consolidation_async(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None):
+    def run_consolidation_async(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None, location: str = ""):
         """Kick off memory consolidation (diary, arc, rumors) in a background thread.
 
         This avoids blocking conversation startup with slow LLM calls.
@@ -53,10 +53,10 @@ class Summaries(Remembering):
             return
         if not self.__db:
             return
-        Thread(target=self._run_consolidation, args=(npcs_in_conversation, world_id, current_game_days), daemon=True).start()
+        Thread(target=self._run_consolidation, args=(npcs_in_conversation, world_id, current_game_days, location), daemon=True).start()
 
     @utils.time_it
-    def _run_consolidation(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float):
+    def _run_consolidation(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float, location: str = ""):
         """Run diary → rumor → arc consolidation for all NPCs. Called from background thread."""
         player_character = npcs_in_conversation.get_player_character()
         player_name = player_character.name if player_character else "the player"
@@ -68,7 +68,7 @@ class Summaries(Remembering):
             try:
                 diary_created = False
                 if self.__diary:
-                    diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days, player_name)
+                    diary_created = self.__diary.maybe_consolidate(world_id, base_name, character.ref_id, current_game_days, player_name, location)
 
                 if diary_created and self.__rumors:
                     latest_diary = self.__db.get_all_diary_entries(world_id, base_name, character.ref_id)

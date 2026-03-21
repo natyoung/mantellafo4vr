@@ -25,7 +25,8 @@ class DiaryConsolidator:
         self.__game_name = game_name
 
     def maybe_consolidate(self, world_id: str, npc_name: str, npc_ref_id: str,
-                          current_game_days: float, player_name: str = "the player") -> bool:
+                          current_game_days: float, player_name: str = "the player",
+                          location: str = "") -> bool:
         """Check if diary consolidation is due and perform it if so.
 
         Requires BOTH thresholds to be met:
@@ -86,6 +87,7 @@ class DiaryConsolidator:
             world_id, npc_name, npc_ref_id, diary_content,
             game_days_from=game_days_from, game_days_to=current_game_days,
             summaries_from_ts=summaries_from_ts, summaries_to_ts=summaries_to_ts,
+            location=location,
         )
 
         # Delete consolidated summaries

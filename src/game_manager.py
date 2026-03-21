@@ -139,7 +139,8 @@ class GameStateManager:
             # Kick off diary/arc/rumor consolidation in background thread
             # (non-blocking — prompt generation uses whatever is already in the DB)
             self.__rememberer.run_consolidation_async(
-                self.__talk.context.npcs_in_conversation, world_id, self.__talk.context.game_days
+                self.__talk.context.npcs_in_conversation, world_id, self.__talk.context.game_days,
+                self.__talk.context.location
             )
 
         # Build response

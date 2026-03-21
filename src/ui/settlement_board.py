@@ -65,7 +65,6 @@ def _read_recent_summaries(db_path: Path) -> list[dict]:
             SELECT npc_name, npc_ref_id, content, from_ts, to_ts, created_at
             FROM summaries
             ORDER BY to_ts DESC
-            LIMIT 50
         """)
         return [dict(row) for row in cur.fetchall()]
     except sqlite3.OperationalError:
@@ -136,7 +135,10 @@ def _build_board_html(db_path: Path, npc_filter: str = "All", view: str = "All")
         html += """<div style="margin-bottom: 30px;">
             <h2 style="color: #4CAF50; border-bottom: 1px solid #333; padding-bottom: 8px;">Diary Entries</h2>"""
         for entry in diary_entries:
+            loc = entry.get("location", "")
             days_range = f"{_format_game_days(entry['game_days_from'])} — {_format_game_days(entry['game_days_to'])}"
+            if loc:
+                days_range += f", {loc}"
             content_html = entry["content"].replace("\n", "<br>")
             html += f"""<div style="margin: 15px 0; padding: 15px; background: #1a1a1a; border-left: 3px solid #4CAF50; border-radius: 4px;">
                 <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">

@@ -33,7 +33,7 @@ class Remembering(ABC):
         """
         pass
 
-    def run_consolidation_async(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None):
+    def run_consolidation_async(self, npcs_in_conversation: Characters, world_id: str, current_game_days: float | None = None, location: str = ""):
         """Kick off memory consolidation in a background thread.
 
         Default no-op. Override in subclasses that support consolidation.
