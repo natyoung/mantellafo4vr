@@ -53,6 +53,14 @@ class ClientBase(AIClient):
         self._base_url = self.__get_endpoint(api_url)
         self._startup_async_client: AsyncOpenAI | None = None
         self._request_params: dict[str, Any] | None = llm_params
+        # For Anthropic models on OpenRouter, prefer the Anthropic provider
+        # (Azure provider rejects assistant message prefill)
+        if 'openrouter' in self._base_url and llm.startswith('anthropic/'):
+            if self._request_params is None:
+                self._request_params = {}
+            self._request_params.setdefault('extra_body', {})
+            self._request_params['extra_body'].setdefault('provider', {})
+            self._request_params['extra_body']['provider'].setdefault('order', ['Anthropic'])
         self._image_client = None
         self._function_client = None
         self._enable_vision_next_call: bool = False

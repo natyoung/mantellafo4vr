@@ -40,11 +40,13 @@ class ArcConsolidator:
         # Check time threshold
         last_arc_days = self.__db.get_latest_arc_game_days(world_id, npc_name, npc_ref_id)
         days_since = current_game_days - (last_arc_days or 0.0)
+        logger.debug(f"Arc check for {npc_name}: days_since={days_since:.1f} (need {interval}), last_arc_days={last_arc_days}")
         if days_since < interval:
             return False
 
         # Check diary count threshold
         all_diaries = self.__db.get_all_diary_entries(world_id, npc_name, npc_ref_id)
+        logger.debug(f"Arc check for {npc_name}: {len(all_diaries)} diary entries (need {min_diaries})")
         if len(all_diaries) < min_diaries:
             return False
 
