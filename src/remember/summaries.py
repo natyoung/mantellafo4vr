@@ -118,18 +118,18 @@ class Summaries(Remembering):
                         if content and content not in diary_paragraphs:
                             diary_paragraphs.append(content)
 
-                # Load remaining summaries (recent, detailed memories)
-                all_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
-                db_summaries = score_memories(all_summaries, context_hint, max_results=self.MAX_SUMMARIES, recent_guaranteed=self.RECENT_GUARANTEED)
-                if len(all_summaries) > len(db_summaries):
-                    logger.info(f"Memory relevance filter for {base_name}: {len(db_summaries)}/{len(all_summaries)} summaries selected")
-                for s in db_summaries:
-                    content = s["content"].strip()
-                    if content:
-                        for line in content.split("\n"):
-                            line = line.strip()
-                            if line and line not in summary_paragraphs:
-                                summary_paragraphs.append(line)
+                    # Load remaining summaries (recent, detailed memories)
+                    all_summaries = self.__db.get_all_summaries(world_id, base_name, character.ref_id)
+                    db_summaries = score_memories(all_summaries, context_hint, max_results=self.MAX_SUMMARIES, recent_guaranteed=self.RECENT_GUARANTEED)
+                    if len(all_summaries) > len(db_summaries):
+                        logger.info(f"Memory relevance filter for {base_name}: {len(db_summaries)}/{len(all_summaries)} summaries selected")
+                    for s in db_summaries:
+                        content = s["content"].strip()
+                        if content:
+                            for line in content.split("\n"):
+                                line = line.strip()
+                                if line and line not in summary_paragraphs:
+                                    summary_paragraphs.append(line)
 
         # Load faction rumors for each NPC (what they've heard from faction peers)
         rumor_paragraphs = []
@@ -217,7 +217,8 @@ class Summaries(Remembering):
                     game=self.__game.game_name_in_filepath,
                     player_name=player_name,
                 )
-        while True:
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
                 if len(messages) >= 5:
                     summary = self.summarize_conversation(messages.transform_to_dict_representation(messages.get_talk_only()), prompt, npc_name, player_name)
@@ -229,10 +230,10 @@ class Summaries(Remembering):
                 else:
                     logger.info(f"Conversation summary not saved. Not enough dialogue spoken.")
                 break
-            except:
-                logger.error('Failed to summarize conversation. Retrying...')
-                time.sleep(5)
-                continue
+            except Exception as e:
+                logger.error(f'Failed to summarize conversation (attempt {attempt + 1}/{max_retries}): {e}')
+                if attempt < max_retries - 1:
+                    time.sleep(5)
         return ""
 
     def __check_db_summary_overflow(self, world_id: str, base_name: str, ref_id: str, npc_name: str, player_name: str = "the player"):
@@ -314,7 +315,12 @@ class Summaries(Remembering):
         """
         days = int(game_days)
         hours = int((game_days - days) * 24)
-        in_game_time_twelve_hour = hours - 12 if hours > 12 else hours
+        if hours == 0:
+            in_game_time_twelve_hour = 12
+        elif hours > 12:
+            in_game_time_twelve_hour = hours - 12
+        else:
+            in_game_time_twelve_hour = hours
 
         return f"[Day {days}, {in_game_time_twelve_hour} {utils.get_time_group(hours)}]"
 

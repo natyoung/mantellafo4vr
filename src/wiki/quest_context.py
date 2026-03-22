@@ -216,13 +216,13 @@ class QuestContextBuilder:
             if stage_num >= 300:
                 continue
 
-            # Get log entry
-            log_match = re.search(r'\|+log' + idx + r'[ \t]*=[ \t]*([^\n]*)', wiki)
+            # Get log entry (use word boundary to avoid log1 matching log10)
+            log_match = re.search(r'\|+log' + idx + r'(?!\d)[ \t]*=[ \t]*([^\n]*)', wiki)
             log = self._clean_markup(log_match.group(1)).strip() if log_match else ""
 
             # Fallback to desc
             if not log:
-                desc_match = re.search(r'\|+desc' + idx + r'\s*=\s*([^\n]+)', wiki)
+                desc_match = re.search(r'\|+desc' + idx + r'(?!\d)\s*=\s*([^\n]+)', wiki)
                 log = self._clean_markup(desc_match.group(1)).strip() if desc_match else ""
 
             if not log or log.lower() in ("quest failed", "quest complete"):
@@ -262,11 +262,11 @@ class QuestContextBuilder:
             if stage_num >= 300:
                 continue
 
-            log_match = re.search(r'\|+log' + idx + r'[ \t]*=[ \t]*([^\n]*)', wiki)
+            log_match = re.search(r'\|+log' + idx + r'(?!\d)[ \t]*=[ \t]*([^\n]*)', wiki)
             log = self._clean_markup(log_match.group(1)).strip() if log_match else ""
 
             if not log:
-                desc_match = re.search(r'\|+desc' + idx + r'\s*=\s*([^\n]+)', wiki)
+                desc_match = re.search(r'\|+desc' + idx + r'(?!\d)\s*=\s*([^\n]+)', wiki)
                 log = self._clean_markup(desc_match.group(1)).strip() if desc_match else ""
 
             if not log or log.lower() in ("quest failed", "quest complete"):

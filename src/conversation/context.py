@@ -316,8 +316,8 @@ class Context:
         health = self.get_custom_context_value("mantella_player_health_percent")
         rad = self.get_custom_context_value("mantella_player_rad_percent")
         if health is not None or rad is not None:
-            health_pct = int(health * 100) if health else 100
-            rad_pct = int(rad * 100) if rad else 0
+            health_pct = int(health * 100) if health is not None else 100
+            rad_pct = int(rad * 100) if rad is not None else 0
             lines.append(f"Health: {health_pct}% | Radiation: {rad_pct}%")
         
         if caps:
