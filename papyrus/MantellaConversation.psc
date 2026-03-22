@@ -1554,30 +1554,32 @@ int Function BuildCustomActorValues(Actor actorToBuildCustomValuesFor)
         elseif npcWS.bIsScavenger
             job = "scavenger"
         elseif npcWS.bIsWorker && wsParent
-            ; Check for vendor assignment via work object
-            ObjectReference workObj = actorToBuildCustomValuesFor.GetLinkedRef(wsParent.WorkshopLinkWork)
-            if workObj
-                WorkshopObjectScript wsObj = workObj as WorkshopObjectScript
-                if wsObj && wsObj.VendorType > -1
-                    if wsObj.VendorType == 0
-                        job = "shopkeeper (general store)"
-                    elseif wsObj.VendorType == 1
-                        job = "shopkeeper (armor store)"
-                    elseif wsObj.VendorType == 2
-                        job = "shopkeeper (weapons store)"
-                    elseif wsObj.VendorType == 3
-                        job = "bartender"
-                    elseif wsObj.VendorType == 4
-                        job = "doctor (clinic)"
-                    elseif wsObj.VendorType == 5
-                        job = "shopkeeper (clothing store)"
-                    elseif wsObj.VendorType == 6
-                        job = "chemist"
-                    else
-                        job = "shopkeeper"
+            ; Check vendor factions (set by SetVendorData when NPC is assigned to a shop)
+            int vIdx = 0
+            while vIdx < wsParent.WorkshopVendorTypes.Length && job == ""
+                if wsParent.WorkshopVendorTypes[vIdx].VendorFaction
+                    if actorToBuildCustomValuesFor.IsInFaction(wsParent.WorkshopVendorTypes[vIdx].VendorFaction)
+                        if vIdx == 0
+                            job = "shopkeeper (general store)"
+                        elseif vIdx == 1
+                            job = "shopkeeper (armor store)"
+                        elseif vIdx == 2
+                            job = "shopkeeper (weapons store)"
+                        elseif vIdx == 3
+                            job = "bartender"
+                        elseif vIdx == 4
+                            job = "doctor (clinic)"
+                        elseif vIdx == 5
+                            job = "shopkeeper (clothing store)"
+                        elseif vIdx == 6
+                            job = "chemist"
+                        else
+                            job = "shopkeeper"
+                        endif
                     endif
                 endif
-            endif
+                vIdx += 1
+            endwhile
             ; If not a vendor, check resource type
             if job == ""
                 if npcWS.assignedMultiResource
