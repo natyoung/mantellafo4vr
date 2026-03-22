@@ -584,8 +584,6 @@ class GameStateManager:
                 custom_values = json[comm_consts.KEY_ACTOR_CUSTOMVALUES]
                 if not custom_values:
                     custom_values: dict[str, Any] = {}
-                else:
-                    logger.debug(f"Actor custom_values for {character_name}: {list(custom_values.keys())}")
             equipment = Equipment({})
             if json.__contains__(comm_consts.KEY_ACTOR_EQUIPMENT):
                 equipment = Equipment(self.__convert_to_equipment_item_dictionary(json[comm_consts.KEY_ACTOR_EQUIPMENT]))
