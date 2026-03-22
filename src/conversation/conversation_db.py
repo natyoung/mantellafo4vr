@@ -205,6 +205,23 @@ class ConversationDB:
         row = cur.fetchone()
         return row[0] if row else 0
 
+    def get_recent_radiant_topics(self, world_id: str, npc_names: list[str], limit: int = 3) -> list[str]:
+        """Get recent conversation summaries for NPC pairs (radiant topic avoidance).
+
+        Returns summary content for conversations where any of the named NPCs participated together.
+        """
+        if len(npc_names) < 2:
+            return []
+        # Find conversations that had at least 2 of the given NPCs (excluding player)
+        placeholders = ",".join("?" * len(npc_names))
+        cur = self.conn.execute(
+            f"""SELECT DISTINCT s.content FROM summaries s
+                WHERE s.world_id = ? AND s.npc_name IN ({placeholders})
+                ORDER BY s.to_ts DESC LIMIT ?""",
+            (world_id, *npc_names, limit),
+        )
+        return [row[0] for row in cur.fetchall() if row[0]]
+
     def get_unsummarized_messages(self, world_id: str, npc_name: str, npc_ref_id: str) -> list[dict]:
         latest_to_ts = self.get_latest_summary_to_ts(world_id, npc_name, npc_ref_id)
         if latest_to_ts is not None:

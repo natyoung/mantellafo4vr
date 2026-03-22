@@ -149,8 +149,24 @@ class radiant(conversation_type):
         
         text = ""
         if len(messages) == 1:
-            # Only system message exists = inject start prompt
+            # Only system message exists = inject start prompt with topic avoidance
             text = self.__user_start_prompt
+            # Pull recent topics these NPCs have already discussed
+            db = getattr(context_for_conversation, '_Context__conversation_db', None)
+            if db:
+                npc_names = [utils.remove_trailing_number(c.name) for c in context_for_conversation.get_characters_excluding_player().get_all_characters()]
+                recent_topics = db.get_recent_radiant_topics(context_for_conversation.world_id, npc_names, limit=3)
+                if recent_topics:
+                    # Summarize to brief hints so we don't bloat the prompt
+                    hints = []
+                    for topic in recent_topics:
+                        # Take first sentence as topic hint
+                        first_line = topic.strip().split('.')[0].strip()
+                        if first_line and len(first_line) > 10:
+                            hints.append(first_line)
+                    if hints:
+                        avoid_text = "; ".join(hints[:5])
+                        text += f"\nYou've recently talked about: {avoid_text}. Bring up a different topic this time — you can reference past events but don't repeat the same conversation."
         elif len(messages) == end_prompt_threshold:
             # Inject end prompt
             text = self.__user_end_prompt
