@@ -1536,6 +1536,14 @@ int Function BuildCustomActorValues(Actor actorToBuildCustomValuesFor)
     int handleCustomActorValues = F4SE_HTTP.createDictionary()
     F4SE_HTTP.setFloat(handleCustomActorValues, mConsts.KEY_ACTOR_CUSTOMVALUES_POSX, actorToBuildCustomValuesFor.getpositionX())
     F4SE_HTTP.setFloat(handleCustomActorValues, mConsts.KEY_ACTOR_CUSTOMVALUES_POSY, actorToBuildCustomValuesFor.getpositionY())
+    ; Companion affinity (0-1100+, only for active companions)
+    if actorToBuildCustomValuesFor.IsinFaction(CompanionFaction) && actorToBuildCustomValuesFor.GetFactionRank(CompanionFaction) >= 0
+        ActorValue CA_Affinity = Game.GetForm(0x0002825D) as ActorValue
+        if CA_Affinity
+            float affinity = actorToBuildCustomValuesFor.GetValue(CA_Affinity)
+            F4SE_HTTP.setFloat(handleCustomActorValues, "mantella_actor_affinity", affinity)
+        endif
+    endif
     ; Detect settler job assignment
     WorkshopNPCScript npcWS = actorToBuildCustomValuesFor as WorkshopNPCScript
     if npcWS

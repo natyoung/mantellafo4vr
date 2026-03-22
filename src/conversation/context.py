@@ -236,6 +236,27 @@ class Context:
             if role_info:
                 sections.append("=== YOUR RELATIONSHIP WITH PLAYER ===\n" + role_info)
         
+        # === COMPANION AFFINITY ===
+        affinity_lines = []
+        for npc in self.get_characters_excluding_player().get_all_characters():
+            affinity = npc.get_custom_character_value("mantella_actor_affinity")
+            if affinity is not None:
+                affinity = float(affinity)
+                if affinity >= 1000:
+                    affinity_lines.append(f"You and the player share a profound bond — deep mutual trust and loyalty.")
+                elif affinity >= 750:
+                    affinity_lines.append(f"You trust the player deeply. You're willing to open up about personal matters.")
+                elif affinity >= 500:
+                    affinity_lines.append(f"You respect the player and consider them a reliable ally.")
+                elif affinity >= 250:
+                    affinity_lines.append(f"You're getting to know the player. You're cautiously warming up to them.")
+                elif affinity >= 0:
+                    affinity_lines.append(f"You and the player are still feeling each other out. You keep things professional.")
+                else:
+                    affinity_lines.append(f"You're frustrated with the player's recent choices. Your patience is wearing thin.")
+        if affinity_lines:
+            sections.append("=== YOUR BOND WITH THE PLAYER ===\n" + "\n".join(affinity_lines))
+
         # === SETTLER JOBS ===
         job_lines = []
         for npc in self.get_characters_excluding_player().get_all_characters():
