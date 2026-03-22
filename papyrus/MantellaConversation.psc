@@ -1540,23 +1540,48 @@ int Function BuildCustomActorValues(Actor actorToBuildCustomValuesFor)
     WorkshopNPCScript npcWS = actorToBuildCustomValuesFor as WorkshopNPCScript
     if npcWS
         string job = ""
+        WorkshopParentScript wsParent = (Game.GetForm(0x0002058E) as Quest) as WorkshopParentScript
         if npcWS.bIsGuard
             job = "guard"
         elseif npcWS.bIsScavenger
             job = "scavenger"
-        elseif npcWS.bIsWorker
-            job = "worker"
-        endif
-        ; Try to identify specific work object
-        if npcWS.bIsWorker
-            WorkshopParentScript wsParent = (Game.GetForm(0x0002058E) as Quest) as WorkshopParentScript
-            if wsParent
-                ObjectReference workObj = actorToBuildCustomValuesFor.GetLinkedRef(wsParent.WorkshopLinkWork)
-                if workObj
-                    string objName = workObj.GetDisplayName()
-                    if objName != ""
-                        job = job + " (" + objName + ")"
+        elseif npcWS.bIsWorker && wsParent
+            ; Check for vendor assignment via work object
+            ObjectReference workObj = actorToBuildCustomValuesFor.GetLinkedRef(wsParent.WorkshopLinkWork)
+            if workObj
+                WorkshopObjectScript wsObj = workObj as WorkshopObjectScript
+                if wsObj && wsObj.VendorType > -1
+                    if wsObj.VendorType == 0
+                        job = "shopkeeper (general store)"
+                    elseif wsObj.VendorType == 1
+                        job = "shopkeeper (armor store)"
+                    elseif wsObj.VendorType == 2
+                        job = "shopkeeper (weapons store)"
+                    elseif wsObj.VendorType == 3
+                        job = "bartender"
+                    elseif wsObj.VendorType == 4
+                        job = "doctor (clinic)"
+                    elseif wsObj.VendorType == 5
+                        job = "shopkeeper (clothing store)"
+                    elseif wsObj.VendorType == 6
+                        job = "chemist"
+                    else
+                        job = "shopkeeper"
                     endif
+                endif
+            endif
+            ; If not a vendor, check resource type
+            if job == ""
+                if npcWS.assignedMultiResource
+                    if npcWS.assignedMultiResource == wsParent.WorkshopRatings[0].resourceValue
+                        job = "farmer"
+                    elseif npcWS.assignedMultiResource == wsParent.WorkshopRatings[3].resourceValue
+                        job = "guard"
+                    else
+                        job = "worker"
+                    endif
+                else
+                    job = "worker"
                 endif
             endif
         endif
