@@ -84,6 +84,18 @@ class WikiDB:
         cur.execute('SELECT * FROM quests WHERE formid = ?', (formid,))
         row = cur.fetchone()
         return dict(row) if row else None
+
+    def get_all_quest_formids_decimal(self) -> list[int]:
+        """Get all quest FormIDs as decimal integers for Papyrus."""
+        cur = self.conn.cursor()
+        cur.execute('SELECT formid FROM quests WHERE formid IS NOT NULL AND formid != ""')
+        result = []
+        for row in cur.fetchall():
+            try:
+                result.append(int(row[0], 16))
+            except (ValueError, TypeError):
+                pass
+        return result
     
     def get_quest_by_edid(self, edid: str) -> Optional[dict]:
         """Lookup quest by EditorID (e.g., 'MQ102')."""

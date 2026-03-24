@@ -163,6 +163,7 @@ class MantellaConfigValueDefinitionsNew:
         prompts_category.add_config_value(PromptDefinitions.get_radiant_continue_prompt_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_radiant_end_prompt_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_radiant_max_turns_config_value())
+        prompts_category.add_config_value(PromptDefinitions.get_quest_trigger_phrase_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_stt_prompt_fallout4_config_value())
         prompts_category.add_config_value(PromptDefinitions.get_stt_prompt_skyrim_config_value())
         result.add_base_group(prompts_category)

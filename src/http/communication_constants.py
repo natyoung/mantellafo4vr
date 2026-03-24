@@ -80,7 +80,9 @@ class communication_constants:
 
     # Game Context System
     KEY_QUEST_IDS_TO_CHECK: str = PREFIX + "quest_ids_to_check"
+    KEY_ALL_QUEST_IDS: str = PREFIX + "all_quest_ids"
     KEY_CONTEXT_NPC_QUESTS: str = PREFIX + "npc_quests"
+    KEY_CONTEXT_ACTIVE_QUEST: str = PREFIX + "active_quest_data"
     
     # Settlement ownership
     KEY_CONTEXT_IS_PLAYER_SETTLEMENT: str = PREFIX + "is_player_settlement"
@@ -108,4 +110,5 @@ class communication_constants:
     # Actions
     ACTION_RELOADCONVERSATION: str = PREFIX + "reload_conversation"
     ACTION_ENDCONVERSATION: str = PREFIX + "end_conversation"
+    ACTION_GET_ACTIVE_QUEST: str = PREFIX + "get_active_quest"
     ACTION_REMOVECHARACTER: str = PREFIX + "remove_character"

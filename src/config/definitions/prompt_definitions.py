@@ -368,7 +368,14 @@ Do not use quotation marks. Write in {language}."""
                                             If the EndConversation action is enabled for radiant conversation,
                                             the LLM may choose to end the conversation earlier if it naturally concludes."""
         return ConfigValueInt("radiant_max_turns", "Radiant Max Turns", radiant_max_turns_description, 2, 2, 999)
-    
+
+    @staticmethod
+    def get_quest_trigger_phrase_config_value() -> ConfigValue:
+        description = """The exact phrase the player says to trigger the quest guidance feature.
+                            When the player says this phrase to a companion, the companion will list
+                            the player's running quests grouped by faction and help them decide what to focus on."""
+        return ConfigValueString("quest_trigger_phrase", "Quest Trigger Phrase", description, "what's the plan")
+
     @staticmethod
     def get_function_llm_prompt_config_value() -> ConfigValue:
         description = """The prompt sent to the separate function calling LLM when `Custom Function Model` is enabled.

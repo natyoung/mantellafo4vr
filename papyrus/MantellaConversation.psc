@@ -70,6 +70,8 @@ bool PollTimerActive
 bool _shouldRespond = true
 int _lastTopicInfo = 0
 int[] _questIdsToCheck  ; FormIDs received from Python for quest stage checking
+int[] _allQuestIds      ; All quest FormIDs for on-demand active quest lookup
+string _activeQuestResult = ""  ; Result of active quest scan, sent back to Python
 
 int _delayedHandle
 string[] _delayedActionIdentifier
@@ -234,6 +236,13 @@ function ContinueConversation(int handle)
         else
             _questIdsToCheck = new int[0]
         endif
+        if F4SE_HTTP.hasKey(handle, mConsts.KEY_ALL_QUEST_IDS)
+            _allQuestIds = F4SE_HTTP.getIntArray(handle, mConsts.KEY_ALL_QUEST_IDS)
+            Debug.Trace("Mantella: Loaded " + _allQuestIds.Length + " quest FormIDs for active quest lookup")
+        else
+            _allQuestIds = new int[0]
+        endif
+        _activeQuestResult = ""
         RequestContinueConversation()
     elseIf(nextAction == mConsts.KEY_REPLYTYPE_NPCTALK)
         int npcTalkHandle = F4SE_HTTP.getNestedDictionary(handle, mConsts.KEY_REPLYTYPE_NPCTALK)
@@ -332,8 +341,6 @@ function ProcessNpcSpeak(int handle)
         string lineToSpeak = F4SE_HTTP.getString(handle, mConsts.KEY_ACTOR_LINETOSPEAK, "Error: No line transmitted for actor to speak")
         ;float duration = F4SE_HTTP.getFloat(handle, mConsts.KEY_ACTOR_DURATION, 0)
         string[] actions = F4SE_HTTP.getStringArray(handle, mConsts.KEY_ACTOR_ACTIONS)
-        
-
 
         int topidID = F4SE_HTTP.getInt(handle, mConsts.KEY_CONTINUECONVERSATION_TOPICINFOFILE,1)
         RaiseActionEvent(speaker, lineToSpeak, actions, handle)
@@ -1067,6 +1074,10 @@ Function TriggerCorrectCustomEvent(string actionIdentifier, Actor speaker, strin
             CauseReassignmentOfParticipantAlias()
             
         endif
+    ElseIf (actionIdentifier == mConsts.ACTION_GET_ACTIVE_QUEST)
+        Debug.Trace("Mantella: GetActiveQuest action triggered, scanning " + _allQuestIds.Length + " quests")
+        _activeQuestResult = ScanRunningQuests()
+        Debug.Trace("Mantella: Running quests result: " + _activeQuestResult)
     endIf
 endFunction
 
@@ -1683,6 +1694,12 @@ int Function BuildCustomContextValues()
         endif
     endif
 
+    ; Active quest scan result (from GetActiveQuest action)
+    if _activeQuestResult != ""
+        F4SE_HTTP.setString(handleCustomContextValues, mConsts.KEY_CONTEXT_ACTIVE_QUEST, _activeQuestResult)
+        _activeQuestResult = ""  ; Clear after sending — one-shot
+    endif
+
     return handleCustomContextValues
 EndFunction
 
@@ -1695,16 +1712,20 @@ string function BuildQuestData()
         if q
             string qName = q.GetName()
             if qName != ""
+                string activeFlag = ""
+                if q.IsActive()
+                    activeFlag = ":active"
+                endif
                 if q.IsCompleted()
                     if result != ""
                         result += "|"
                     endif
-                    result += qName + ":completed"
+                    result += qName + ":completed" + activeFlag
                 elseif q.GetStage() > 0
                     if result != ""
                         result += "|"
                     endif
-                    result += qName + ":running:" + q.GetStage()
+                    result += qName + ":running:" + q.GetStage() + activeFlag
                 ; else: not started — skip to avoid noise
                 endif
             endif
@@ -1714,6 +1735,29 @@ string function BuildQuestData()
     return result
 endfunction
 
+
+string function ScanRunningQuests()
+    ; Scan all known quest FormIDs — returns all running quests as "FormID:QuestName:stage|..."
+    string result = ""
+    int i = 0
+    while i < _allQuestIds.Length
+        Quest q = Game.GetForm(_allQuestIds[i]) as Quest
+        if q && q.IsRunning() && !q.IsCompleted() && q.GetStage() > 0
+            string qName = q.GetName()
+            if qName != ""
+                if result != ""
+                    result += "|"
+                endif
+                result += _allQuestIds[i] + ":" + qName + ":" + q.GetStage()
+            endif
+        endif
+        i += 1
+    endwhile
+    if result == ""
+        return "NONE"
+    endif
+    return result
+endfunction
 
 int function GetCurrentHourOfDay()
 	float Time = Utility.GetCurrentGameTime()

@@ -36,6 +36,13 @@ This is a fork of [Mantella](https://github.com/art-from-the-machine/Mantella) (
 - NPCs know which quests they're involved in, current status, and stage details
 - Wiki database with 889 characters, 299 quests, 44,892 pages from Fallout wiki
 
+### Quest Guidance (new feature)
+- Say "what's the plan?" (configurable) to a companion to get an overview of your running quests
+- Quests grouped by faction: Railroad, Brotherhood, Minutemen, Institute, Other
+- Drill down by faction or ask about specific quests by name
+- Companions only — settlers and random NPCs won't respond to the trigger
+- See [Quest Guidance Feature](#quest-guidance-feature) section below for details
+
 ### Vision System (enhanced)
 - Enabled vision action for Fallout 4 (ON_DEMAND mode — not every turn)
 - Speech-triggered vision: say "look at this", "check this out", etc.
@@ -274,3 +281,40 @@ You can also access settings in-game via the **Mantella Settings Holotape** in y
 **No audio from NPC:**
 - Verify your TTS server is running and reachable
 - Check FO4VR game volume isn't muted
+
+---
+
+## Quest Guidance Feature
+
+Ask your companion about your active quests by saying the trigger phrase (default: **"what's the plan?"**).
+
+### How It Works
+
+1. Say the trigger phrase to a companion (Cait, Nick, Piper, Danse, Preston, etc.)
+2. The companion says a brief stall line ("Let me think...") while the system scans your quests
+3. Your running quests are grouped by faction (Railroad, Brotherhood, Minutemen, Institute, Other)
+4. The companion summarizes your quest categories and asks what you want to focus on
+5. You can drill down by faction: "Tell me about the Railroad" → companion lists Railroad quests
+6. Or ask about a specific quest by name: "What about Butcher's Bill?"
+
+### Configuration
+
+The trigger phrase can be changed in `config.ini` (or the Mantella web UI under Prompts):
+
+```
+quest_trigger_phrase = what's the plan
+```
+
+### Requirements
+
+- Only works when talking to a **companion** (not random NPCs or settlers)
+- Requires the wiki database (`data/Fallout4/wiki.db`) for quest metadata
+- The trigger phrase must be an exact match (case-insensitive, punctuation-insensitive)
+- Only fires once per conversation to avoid repetition
+
+### Notes
+
+- The companion won't reveal quest spoilers — they only know quest names, factions, and locations
+- Quest data comes from the game engine in real-time (not from saved data)
+- 181 quest FormIDs are checked each time the feature triggers
+- The existing per-NPC quest awareness (showing quest stages for NPCs associated with specific quests) is completely separate and unaffected

@@ -60,6 +60,8 @@ class GameStateManager:
         self.__last_tts_generation: int = 0       # Which conversation generation sent the TTS
         self.__conversation_generation: int = 0   # Incremented on each new conversation
         self.__end_conversation_sent = threading.Event()  # Prevents duplicate end_conversation responses flooding F4SE_HTTP queue
+        self.__active_quest_injected = False
+        self.__quest_trigger_pending = False
 
     ###### react to calls from the game #######
     @utils.time_it
@@ -102,6 +104,8 @@ class GameStateManager:
         self.__last_start_actors = actor_ids
         self.__last_activity_time = now
         self.__end_conversation_sent.clear()  # Reset for new conversation
+        self.__active_quest_injected = False  # Reset for new conversation
+        self.__quest_trigger_pending = False  # Reset for new conversation
 
         # Reset player_input guard — a previous conversation's STT thread may have
         # hung (e.g. player died mid-speech), leaving the flag stuck True forever.
@@ -159,6 +163,17 @@ class GameStateManager:
                 response[comm_consts.KEY_QUEST_IDS_TO_CHECK] = quest_ids
                 # TODO: Enable once Papyrus quest stage reporting is confirmed working
                 # self.__talk.waiting_for_game_context = True
+            # Send all quest FormIDs for on-demand active quest lookup
+            try:
+                from src.wiki.wiki_db import WikiDB
+                db = WikiDB()
+                if db.is_available:
+                    all_quest_ids = db.get_all_quest_formids_decimal()
+                    if all_quest_ids:
+                        response[comm_consts.KEY_ALL_QUEST_IDS] = all_quest_ids
+                        logger.info(f"Sent {len(all_quest_ids)} quest FormIDs for active quest lookup")
+            except Exception as e:
+                logger.error(f"Error loading all quest FormIDs: {e}")
         
         if not self.__talk:
             return self.error_message("Conversation was ended before it could start (game-side timeout during memory loading).")
@@ -184,7 +199,22 @@ class GameStateManager:
             self.__should_reload = False
 
         self.__update_context(input_json)
-        
+
+        # Check for active quest scan result from Papyrus (GetActiveQuest action) — once per conversation, companions only
+        if not self.__active_quest_injected:
+            custom_vals = input_json.get(comm_consts.KEY_CONTEXT, {}).get(comm_consts.KEY_CONTEXT_CUSTOMVALUES, {})
+            active_quest_context = self._process_active_quest_result(custom_vals)
+            if active_quest_context and self.__talk:
+                self.__active_quest_injected = True
+                if not self._has_companion_in_conversation():
+                    logger.info("Skipping quest context injection — no companion in conversation")
+                else:
+                    logger.info("Injecting active quest context into conversation")
+                    from src.llm.messages import UserMessage
+                    quest_msg = UserMessage(self.__config, active_quest_context, "", True)
+                    quest_msg.is_multi_npc_message = False
+                    self.__talk.add_message_and_generate(quest_msg)
+
         # If we were waiting for game context (two-way communication), start LLM now
         if self.__talk.waiting_for_game_context:
             self.__talk.start_generation_after_context()
@@ -313,6 +343,17 @@ class GameStateManager:
                             logger.log(23, "Vision action triggered via keyword: Vision enabled for next LLM call")
                             return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
 
+            # Quest trigger: detect configurable trigger phrase (e.g. "what's the plan")
+            # Companions only. Completely separate from NPC-scoped quest context.
+            if (player_text.strip()
+                    and not self.__active_quest_injected
+                    and self._has_companion_in_conversation()):
+                from src.quest_trigger import is_quest_trigger
+                if is_quest_trigger(player_text.strip(), self.__config.quest_trigger_phrase):
+                    logger.info(f"Quest trigger phrase detected: '{player_text.strip()}'")
+                    self.__update_context(input_json)
+                    return self._send_quest_stall_line(input_json)
+
             self.__update_context(input_json)
             updated_player_text, update_events, player_spoken_sentence = talk.process_player_input(player_text)
 
@@ -435,7 +476,7 @@ class GameStateManager:
             comm_consts.KEY_ACTOR_ISNARRATION: sentence_to_prepare.is_narration,
             comm_consts.KEY_ACTOR_VOICEFILE: sentence_to_prepare.voice_file,
             comm_consts.KEY_ACTOR_DURATION: sentence_to_prepare.voice_line_duration,
-            comm_consts.KEY_ACTOR_ACTIONS: sentence_to_prepare.actions,
+            comm_consts.KEY_ACTOR_ACTIONS: [a.get('identifier', '') for a in sentence_to_prepare.actions if isinstance(a, dict)] if sentence_to_prepare.actions else [],
             comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE: topicID
         }
 
@@ -709,6 +750,170 @@ class GameStateManager:
             logger.error(f"Error looking up quest IDs: {e}")
             return []
         
+    _FACTION_MAP = {
+        'rr': 'Railroad', 'bos': 'Brotherhood of Steel', 'BoS': 'Brotherhood of Steel',
+        'inst': 'Institute', 'Inst': 'Institute', 'minm': 'Minutemen',
+    }
+
+    _COMPANIONS = {
+        'cait', 'codsworth', 'curie', 'danse', 'paladin danse', 'deacon', 'dogmeat',
+        'hancock', 'john hancock', 'macready', 'robert macready', 'nick valentine',
+        'piper', 'piper wright', 'preston garvey', 'strong', 'x6-88', 'ada', 'longfellow',
+        'old longfellow', 'gage', 'porter gage',
+    }
+
+    _QUEST_STALL_LINES = [
+        "Let me think about what we've got going...",
+        "Good question, give me a second...",
+        "Hmm, where to start...",
+        "Let me run through our jobs...",
+        "Right, let me think on that...",
+    ]
+
+    def _send_quest_stall_line(self, input_json: dict[str, Any]) -> dict[str, Any]:
+        """Send a stall voiceline with the GetActiveQuest action attached.
+        Papyrus processes the action, scans quests, sends data back next tick.
+        """
+        import random
+        from src.llm.sentence_content import SentenceContent, SentenceTypeEnum
+
+        stall_text = random.choice(self._QUEST_STALL_LINES)
+        npc = self.__talk.context.npcs_in_conversation.last_added_character
+        if not npc:
+            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+
+        sentence = self.__chat_manager.generate_sentence(
+            SentenceContent(npc, stall_text, SentenceTypeEnum.SPEECH, True)
+        )
+        if not sentence:
+            return {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+
+        sentence.actions.append({'identifier': comm_consts.ACTION_GET_ACTIVE_QUEST})
+
+        topicID = self.__game.get_corrected_topic_id(
+            int(input_json.get(comm_consts.KEY_CONTINUECONVERSATION_TOPICINFOFILE, 1))
+        )
+        self.__game.prepare_sentence_for_game(sentence, self.__talk.context, self.__config, topicID, self.__first_line)
+        self.__first_line = False
+
+        reply = {comm_consts.KEY_REPLYTYPE: comm_consts.KEY_REPLYTYPE_NPCTALK}
+        reply[comm_consts.KEY_REPLYTYPE_NPCTALK] = self.sentence_to_json(sentence, topicID)
+        logger.info(f"Quest stall line sent: '{stall_text}'")
+        return reply
+
+    def _has_companion_in_conversation(self) -> bool:
+        """Check if any companion is in the current conversation."""
+        if not self.__talk:
+            return False
+        for char in self.__talk.context.npcs_in_conversation.get_all_characters():
+            if char.name.lower() in self._COMPANIONS:
+                return True
+        return False
+
+    def _process_active_quest_result(self, custom_context_values: dict[str, Any] | None) -> str | None:
+        """Process running quest list from Papyrus and return enriched quest list for LLM matching.
+
+        Returns None if no data, or a context string with all running quests + metadata.
+        """
+        if not custom_context_values:
+            return None
+
+        quest_data = custom_context_values.get(comm_consts.KEY_CONTEXT_ACTIVE_QUEST)
+        if not quest_data:
+            return None
+
+        logger.info(f"Running quest data received: {quest_data}")
+
+        if quest_data == "NONE":
+            return "The player has no active quests running. Tell them you're not aware of any jobs they're working on."
+
+        # Parse "FormID:QuestName:stage|FormID:QuestName:stage|..." into enriched list
+        from src.wiki.wiki_db import WikiDB
+        try:
+            db = WikiDB()
+        except Exception as e:
+            logger.error(f"Error opening wiki DB: {e}")
+            db = None
+
+        quest_entries = []
+        for entry in quest_data.split("|"):
+            parts = entry.split(":", 2)
+            if len(parts) < 3:
+                continue
+            formid_decimal, quest_name, quest_stage = parts[0], parts[1], parts[2]
+
+            # Enrich with DB metadata
+            faction = ""
+            location = ""
+            if db and db.is_available:
+                try:
+                    formid_hex = f"{int(formid_decimal):08X}"
+                    quest_info = db.get_quest_by_formid(formid_hex)
+                    if quest_info:
+                        quest_name = quest_info.get('title', quest_name)
+                        quest_type = quest_info.get('quest_type', '')
+                        location = quest_info.get('location', '')
+                        # Derive faction from quest_type prefix
+                        for prefix, faction_name in self._FACTION_MAP.items():
+                            if quest_type.startswith(prefix):
+                                faction = faction_name
+                                break
+                        if not faction and 'main' in quest_type:
+                            faction = 'Main Quest'
+                except (ValueError, Exception) as e:
+                    logger.debug(f"Error enriching quest {formid_decimal}: {e}")
+
+            desc = f"- {quest_name}"
+            if faction:
+                desc += f" [{faction}]"
+            if location:
+                desc += f" at {location}"
+            quest_entries.append(desc)
+
+        if not quest_entries:
+            return "The player has no active quests running."
+
+        # Store the raw quest data for later wiki lookup when LLM picks a quest
+        self.__running_quests_raw = quest_data
+
+        # Group quests by faction for drill-down
+        faction_groups: dict[str, list[str]] = {}
+        for entry in quest_entries:
+            # entry is "- Quest Name [Faction] at Location" or "- Quest Name"
+            faction_found = None
+            for faction_name in ['Railroad', 'Brotherhood of Steel', 'Minutemen', 'Institute', 'Main Quest']:
+                if f'[{faction_name}]' in entry:
+                    faction_found = faction_name
+                    break
+            if not faction_found:
+                faction_found = 'Other'
+            if faction_found not in faction_groups:
+                faction_groups[faction_found] = []
+            faction_groups[faction_found].append(entry)
+
+        # Build faction summary
+        summary_parts = []
+        for faction, quests in faction_groups.items():
+            summary_parts.append(f"{faction}: {len(quests)} quest(s)")
+
+        faction_summary = ", ".join(summary_parts)
+
+        # Build full quest list grouped by faction
+        grouped_list = ""
+        for faction, quests in faction_groups.items():
+            grouped_list += f"\n{faction}:\n" + "\n".join(quests) + "\n"
+
+        logger.info(f"Built running quest list with {len(quest_entries)} quests across {len(faction_groups)} factions")
+        return (
+            f"[SYSTEM: The player is asking about quests. They have {len(quest_entries)} running quests across these categories: {faction_summary}\n"
+            f"\nFull quest list by category:{grouped_list}\n"
+            f"INSTRUCTIONS: Do NOT mention stage numbers, quest IDs, or any game system information — speak naturally in character. "
+            f"If the player asked generally ('what's the plan?', 'what should we do?'), summarize the categories and ask which area they want to focus on (e.g. 'We've got Railroad business, Brotherhood orders, and some loose ends — what's on your mind?'). "
+            f"If they mentioned a specific faction or quest name, narrow to those quests from the list. "
+            f"If they named a specific quest, talk about that one. "
+            f"Keep it conversational and in-character. Do NOT use the GetActiveQuest action again.]"
+        )
+
     def error_message(self, message: str) -> dict[str, Any]:
         return {
                 comm_consts.KEY_REPLYTYPE: "error",

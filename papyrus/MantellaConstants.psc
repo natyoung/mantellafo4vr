@@ -83,6 +83,7 @@ string property KEY_INPUTTYPE_PTT = "mantella_push_to_talk" auto
 string property ACTION_RELOADCONVERSATION = "mantella_reload_conversation" auto
 string property ACTION_ENDCONVERSATION = "mantella_end_conversation" auto
 string property ACTION_REMOVECHARACTER = "mantella_remove_character" auto
+string property ACTION_GET_ACTIVE_QUEST = "mantella_get_active_quest" auto
 
 string property ACTION_NPC_OFFENDED = "mantella_npc_offended" auto
 string property ACTION_NPC_FORGIVEN = "mantella_npc_forgiven" auto
@@ -126,7 +127,9 @@ string property KEY_CONTEXT_CUSTOMVALUES_ACTORS_AT_LEAST_ONE_GENERIC = "mantella
 
 ;Quest awareness (Python <-> Papyrus two-way communication)
 string property KEY_QUEST_IDS_TO_CHECK = "mantella_quest_ids_to_check" auto
+string property KEY_ALL_QUEST_IDS = "mantella_all_quest_ids" auto
 string property KEY_CONTEXT_NPC_QUESTS = "mantella_npc_quests" auto
+string property KEY_CONTEXT_ACTIVE_QUEST = "mantella_active_quest_data" auto
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;       Functions Inference Value (MantellaMod -> Mantella Software)      ;
