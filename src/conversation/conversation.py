@@ -626,6 +626,19 @@ class Conversation:
             else:
                 self.__conversation_type.adjust_existing_message_thread(new_prompt, self.__messages)
                 self.__messages.reload_message_thread(new_prompt, self.__llm_client.is_too_long, self.TOKEN_LIMIT_RELOAD_MESSAGES)
+
+            # For radiant conversations, auto-inject a continue message and start generation
+            # so the conversation doesn't stall waiting for player input that will never come
+            if isinstance(self.__conversation_type, radiant):
+                new_user_message = self.__conversation_type.get_user_message(self.__context, self.__messages)
+                if not new_user_message:
+                    # Force a continue prompt if get_user_message returns None due to even message count
+                    new_user_message = UserMessage(self.__context.config, self.__context.config.radiant_continue_prompt, "", True)
+                    new_user_message.is_multi_npc_message = False
+                self.__messages.add_message(new_user_message)
+                self.__persist_new_messages()
+                self.__start_generating_npc_sentences()
+                logger.info("Radiant: auto-started generation after prompt regeneration")
         else:
             logger.warning("__update_conversation_type skipped: conversation has already ended")
 
@@ -911,6 +924,16 @@ class Conversation:
             self.__save_conversation(is_reload=False, end_timestamp=end_timestamp)
     
     @utils.time_it
+    def add_message_and_generate(self, message):
+        """Add a message to the conversation and start NPC generation.
+        Used for injecting context (e.g. active quest data) that triggers a new LLM response.
+        """
+        self.__stop_generation()
+        self.__sentences.clear()
+        self.__messages.add_message(message)
+        self.__persist_new_messages()
+        self.__start_generating_npc_sentences()
+
     def __start_generating_npc_sentences(self, allow_tool_use: bool = True):
         """Starts a background Thread to generate sentences into the SentenceQueue"""
         with self.__generation_start_lock:
