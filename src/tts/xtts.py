@@ -6,6 +6,7 @@ import soundfile as sf
 import numpy as np
 import io
 import json
+import random
 from subprocess import Popen
 import time
 from src.tts.synthesization_options import SynthesizationOptions
@@ -70,8 +71,12 @@ class XTTS(TTSable):
         selected_voice: str | None = self._select_voice_type(voice, in_game_voice, csv_in_game_voice, advanced_voice_model)
 
         if not selected_voice:
-            logger.log(self._loglevel, 'Error could not identify voice model!')
-            return
+            selected_voice = self._pick_random_fallback_voice(voice_gender)
+            if selected_voice:
+                logger.warning(f'Voice not found for {voice}/{in_game_voice}, falling back to random voice: {selected_voice}')
+            else:
+                logger.error(f'Error could not identify voice model and no fallback available!')
+                return
         
         voice = selected_voice
         self._last_voice = selected_voice
@@ -193,7 +198,21 @@ class XTTS(TTSable):
                     logger.info(f'Selected voice: {voice_cleaned}')
                     return voice_cleaned
         logger.error(f'Could not find voice model {voice} in XTTS models list')
-    
+
+    def _pick_random_fallback_voice(self, voice_gender: int | None) -> str | None:
+        """Pick a random rand_f*/rand_m* voice based on gender when the requested voice isn't available."""
+        if voice_gender == 1:  # female
+            prefix = 'rand_f'
+        elif voice_gender == 0:  # male
+            prefix = 'rand_m'
+        else:
+            prefix = 'rand_'
+        candidates = [s for s in self.__available_speakers if s.startswith(prefix)]
+        if candidates:
+            return random.choice(candidates)
+        # If no gendered match, try any rand_ voice
+        candidates = [s for s in self.__available_speakers if s.startswith('rand_')]
+        return random.choice(candidates) if candidates else None
 
     @utils.time_it
     def _synthesize_line_xtts(self, line, save_path):
