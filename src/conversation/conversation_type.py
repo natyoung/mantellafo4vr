@@ -170,11 +170,12 @@ class radiant(conversation_type):
         elif len(messages) == end_prompt_threshold:
             # Inject end prompt
             text = self.__user_end_prompt
-        elif len(messages) < end_prompt_threshold and len(messages) % 2 == 1:
+        elif len(messages) < end_prompt_threshold:
             # Intermediate turns = prompt to continue conversation
             text = self.__user_continue_prompt
         else:
-            return None
+            # Past end threshold — force end
+            text = self.__user_end_prompt
         reply = UserMessage(context_for_conversation.config, text, "", True)
         reply.is_multi_npc_message = False # Don't flag these as multi-npc messages. Don't want a 'Player:' in front of the instruction messages
         return reply
