@@ -579,6 +579,11 @@ class GameStateManager:
                 in_workshop = custom_context_values.get(comm_consts.KEY_CONTEXT_IS_IN_WORKSHOP_MODE, False) if custom_context_values else False
                 self.__client._suppress_vision = bool(in_workshop)
 
+                # Detect vertibird flight — suppress combat/location spam and inject flying context
+                is_flying = custom_context_values.get(comm_consts.KEY_CONTEXT_IS_FLYING, False) if custom_context_values else False
+                if is_flying:
+                    ingame_events = ["You and the player are riding together in a vertibird high above the Commonwealth. The ground is far below. The rotors are loud and the wind is rushing past."]
+
                 talk.update_context(location, time, ingame_events, weather, npcs_nearby, custom_context_values, config_settings, game_days)
     
     @utils.time_it
@@ -605,13 +610,14 @@ class GameStateManager:
             gender: int = int(json[comm_consts.KEY_ACTOR_GENDER])
             race: str = str(json[comm_consts.KEY_ACTOR_RACE])
 
-            # Filter out non-conversational actors (turrets, traps, etc.)
-            _NON_CONVERSATIONAL_RACES = {'turrettripod', 'turretbubble', 'turret'}
+            # Filter out non-conversational actors (turrets, furniture, etc.)
+            _NON_CONVERSATIONAL_RACES = {'turrettripod', 'turretbubble', 'turret', 'turretworkshop', 'vertibird'}
+            _NON_CONVERSATIONAL_NAMES = {'armor rack', 'power armor station', 'weapon rack', 'oar'}
             race_clean = race.split('<')[1].split('>')[0].split('(')[0].strip().lower() if '<' in race else race.lower()
             # Strip trailing "Race" suffix (e.g. "TurretTripodRace" -> "turrettripod")
             if race_clean.endswith('race'):
                 race_clean = race_clean[:-4]
-            if race_clean in _NON_CONVERSATIONAL_RACES:
+            if race_clean in _NON_CONVERSATIONAL_RACES or character_name.lower() in _NON_CONVERSATIONAL_NAMES:
                 logger.info(f"Skipping non-conversational actor '{character_name}' (race: {race})")
                 return None
 
@@ -750,11 +756,6 @@ class GameStateManager:
             logger.error(f"Error looking up quest IDs: {e}")
             return []
         
-    _FACTION_MAP = {
-        'rr': 'Railroad', 'bos': 'Brotherhood of Steel', 'BoS': 'Brotherhood of Steel',
-        'inst': 'Institute', 'Inst': 'Institute', 'minm': 'Minutemen',
-    }
-
     _COMPANIONS = {
         'cait', 'codsworth', 'curie', 'danse', 'paladin danse', 'deacon', 'dogmeat',
         'hancock', 'john hancock', 'macready', 'robert macready', 'nick valentine',
@@ -811,9 +812,10 @@ class GameStateManager:
         return False
 
     def _process_active_quest_result(self, custom_context_values: dict[str, Any] | None) -> str | None:
-        """Process running quest list from Papyrus and return enriched quest list for LLM matching.
+        """Process running quest list from Papyrus and return enriched quest context for LLM.
 
         Returns None if no data, or a context string with all running quests + metadata.
+        Uses quest_trigger module for parsing, enrichment, and context building.
         """
         if not custom_context_values:
             return None
@@ -827,92 +829,22 @@ class GameStateManager:
         if quest_data == "NONE":
             return "The player has no active quests running. Tell them you're not aware of any jobs they're working on."
 
-        # Parse "FormID:QuestName:stage|FormID:QuestName:stage|..." into enriched list
+        from src.quest_trigger import parse_running_quests, enrich_quests_with_metadata, build_quest_context_for_llm
         from src.wiki.wiki_db import WikiDB
-        try:
-            db = WikiDB()
-        except Exception as e:
-            logger.error(f"Error opening wiki DB: {e}")
-            db = None
 
-        quest_entries = []
-        for entry in quest_data.split("|"):
-            parts = entry.split(":", 2)
-            if len(parts) < 3:
-                continue
-            formid_decimal, quest_name, quest_stage = parts[0], parts[1], parts[2]
-
-            # Enrich with DB metadata
-            faction = ""
-            location = ""
-            if db and db.is_available:
-                try:
-                    formid_hex = f"{int(formid_decimal):08X}"
-                    quest_info = db.get_quest_by_formid(formid_hex)
-                    if quest_info:
-                        quest_name = quest_info.get('title', quest_name)
-                        quest_type = quest_info.get('quest_type', '')
-                        location = quest_info.get('location', '')
-                        # Derive faction from quest_type prefix
-                        for prefix, faction_name in self._FACTION_MAP.items():
-                            if quest_type.startswith(prefix):
-                                faction = faction_name
-                                break
-                        if not faction and 'main' in quest_type:
-                            faction = 'Main Quest'
-                except (ValueError, Exception) as e:
-                    logger.debug(f"Error enriching quest {formid_decimal}: {e}")
-
-            desc = f"- {quest_name}"
-            if faction:
-                desc += f" [{faction}]"
-            if location:
-                desc += f" at {location}"
-            quest_entries.append(desc)
-
-        if not quest_entries:
+        quests = parse_running_quests(quest_data)
+        if not quests:
             return "The player has no active quests running."
 
-        # Store the raw quest data for later wiki lookup when LLM picks a quest
-        self.__running_quests_raw = quest_data
+        try:
+            db = WikiDB()
+            enrich_quests_with_metadata(quests, db)
+        except Exception as e:
+            logger.error(f"Error enriching quests: {e}")
 
-        # Group quests by faction for drill-down
-        faction_groups: dict[str, list[str]] = {}
-        for entry in quest_entries:
-            # entry is "- Quest Name [Faction] at Location" or "- Quest Name"
-            faction_found = None
-            for faction_name in ['Railroad', 'Brotherhood of Steel', 'Minutemen', 'Institute', 'Main Quest']:
-                if f'[{faction_name}]' in entry:
-                    faction_found = faction_name
-                    break
-            if not faction_found:
-                faction_found = 'Other'
-            if faction_found not in faction_groups:
-                faction_groups[faction_found] = []
-            faction_groups[faction_found].append(entry)
-
-        # Build faction summary
-        summary_parts = []
-        for faction, quests in faction_groups.items():
-            summary_parts.append(f"{faction}: {len(quests)} quest(s)")
-
-        faction_summary = ", ".join(summary_parts)
-
-        # Build full quest list grouped by faction
-        grouped_list = ""
-        for faction, quests in faction_groups.items():
-            grouped_list += f"\n{faction}:\n" + "\n".join(quests) + "\n"
-
-        logger.info(f"Built running quest list with {len(quest_entries)} quests across {len(faction_groups)} factions")
-        return (
-            f"[SYSTEM: The player is asking about quests. They have {len(quest_entries)} running quests across these categories: {faction_summary}\n"
-            f"\nFull quest list by category:{grouped_list}\n"
-            f"INSTRUCTIONS: Do NOT mention stage numbers, quest IDs, or any game system information — speak naturally in character. "
-            f"If the player asked generally ('what's the plan?', 'what should we do?'), summarize the categories and ask which area they want to focus on (e.g. 'We've got Railroad business, Brotherhood orders, and some loose ends — what's on your mind?'). "
-            f"If they mentioned a specific faction or quest name, narrow to those quests from the list. "
-            f"If they named a specific quest, talk about that one. "
-            f"Keep it conversational and in-character. Do NOT use the GetActiveQuest action again.]"
-        )
+        context = build_quest_context_for_llm(quests)
+        logger.info(f"Built running quest list with {len(quests)} quests")
+        return context
 
     def error_message(self, message: str) -> dict[str, Any]:
         return {

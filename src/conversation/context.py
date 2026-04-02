@@ -746,6 +746,8 @@ class Context:
         if game_days is not None:
             self.__game_days = game_days
 
+        is_flying = custom_context_values.get(communication_constants.KEY_CONTEXT_IS_FLYING, False) if custom_context_values else False
+
         if location:
             if location != '':
                 self.__location = location
@@ -755,8 +757,9 @@ class Context:
                 else:
                     self.__location: str = "Skyrim"
             if (self.__location != self.__prev_location) and (self.__prev_location != None):
-                self.__prev_location = self.__location
-                self.__ingame_events.append(f"The location is now {location}.")
+                if not is_flying:
+                    self.__prev_location = self.__location
+                    self.__ingame_events.append(f"The location is now {location}.")
         
         if in_game_time:
             self.__ingame_time = in_game_time
@@ -916,7 +919,7 @@ class Context:
         relationships = []
         for npc in self.get_characters_excluding_player().get_all_characters():
             trust = self.__get_trust(npc)
-            relationships.append(f"{trust} of {npc.prompt_name}")
+            relationships.append(f"{npc.prompt_name}'s {trust}")
         
         return Context.format_listing(relationships)
 

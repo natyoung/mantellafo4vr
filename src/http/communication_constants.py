@@ -87,6 +87,7 @@ class communication_constants:
     # Settlement ownership
     KEY_CONTEXT_IS_PLAYER_SETTLEMENT: str = PREFIX + "is_player_settlement"
     KEY_CONTEXT_IS_IN_WORKSHOP_MODE: str = PREFIX + "is_in_workshop_mode"
+    KEY_CONTEXT_IS_FLYING: str = PREFIX + "is_flying"
 
     # Player state context
     KEY_CONTEXT_PLAYER_STATE: str = PREFIX + "player_level"  # Contains full state string
