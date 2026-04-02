@@ -330,7 +330,7 @@ class Summaries(Remembering):
         if len(text_to_summarize) > 5:
             messages = message_thread(self.__config, prompt)
             messages.add_message(UserMessage(self.__config, text_to_summarize))
-            with self.__client.override_params(max_tokens=1000):
+            with self.__client.override_params(max_tokens=1000, stop=[]):
                 summary = self.__client.request_call(messages, model_override=self.__summary_model)
             if not summary:
                 logger.error(f"Summarizing conversation failed.")

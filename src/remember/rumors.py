@@ -42,7 +42,7 @@ class RumorGenerator:
         )
         thread = message_thread(self.__config, prompt)
         thread.add_message(UserMessage(self.__config, diary_content))
-        with self.__client.override_params(max_tokens=500):
+        with self.__client.override_params(max_tokens=500, stop=[]):
             rumor_content = self.__client.request_call(thread, model_override=self.__summary_model)
 
         if not rumor_content:
