@@ -1,5 +1,6 @@
 from src.config.config_loader import ConfigLoader
 from src.tts.ttsable import TTSable
+import re
 import requests
 from typing import Any
 import soundfile as sf
@@ -214,8 +215,24 @@ class XTTS(TTSable):
         candidates = [s for s in self.__available_speakers if s.startswith('rand_')]
         return random.choice(candidates) if candidates else None
 
+    @staticmethod
+    def _clean_text_for_tts(text: str) -> str:
+        """Clean text before sending to TTS to prevent reading punctuation aloud."""
+        # Remove *emotes* and narration in asterisks
+        text = re.sub(r'\*[^*]+\*', '', text)
+        # Remove markdown separators (--- or ---)
+        text = re.sub(r'-{2,}', '', text)
+        # Replace ellipsis and multiple dots with a comma (natural pause)
+        text = re.sub(r'\.{2,}', ',', text)
+        # Remove standalone dots/periods that TTS reads as "dot"
+        text = re.sub(r'(?<!\w)\.(?!\w)', '', text)
+        # Clean up double spaces left behind
+        text = re.sub(r'\s{2,}', ' ', text)
+        return text.strip()
+
     @utils.time_it
     def _synthesize_line_xtts(self, line, save_path):
+        line = self._clean_text_for_tts(line)
         def get_voiceline(voice_name):
             voice_path = f"{self._sanitize_voice_name(voice_name)}"
             data = {
