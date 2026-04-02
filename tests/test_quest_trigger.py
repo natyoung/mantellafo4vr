@@ -37,6 +37,15 @@ class TestQuestTriggerPhrase:
         from src.quest_trigger import is_quest_trigger
         assert is_quest_trigger("", "what's the plan?") is False
 
+    def test_empty_trigger(self):
+        from src.quest_trigger import is_quest_trigger
+        assert is_quest_trigger("what's the plan?", "") is False
+
+    def test_stt_extra_whitespace(self):
+        from src.quest_trigger import is_quest_trigger
+        assert is_quest_trigger("  what's the plan  ", "what's the plan?") is True
+
+
 
 class TestQuestListEnrichment:
     """Test parsing Papyrus quest data and enriching with DB metadata."""
@@ -125,3 +134,31 @@ class TestBuildQuestContext:
         ]
         context = build_quest_context_for_llm(quests)
         assert 'stage numbers' in context.lower() or 'game system' in context.lower()
+
+    def test_context_with_multiple_factions(self):
+        from src.quest_trigger import build_quest_context_for_llm
+        quests = [
+            {'name': 'Butcher\'s Bill', 'faction': 'Railroad', 'location': '', 'stage': '50'},
+            {'name': 'Semper Invicta', 'faction': 'Brotherhood of Steel', 'location': '', 'stage': '10'},
+            {'name': 'Taking Independence', 'faction': 'Minutemen', 'location': 'The Castle', 'stage': '30'},
+            {'name': 'Long Time Coming', 'faction': '', 'location': '', 'stage': '105'},
+        ]
+        context = build_quest_context_for_llm(quests)
+        assert 'Railroad' in context
+        assert 'Brotherhood of Steel' in context
+        assert 'Minutemen' in context
+        assert 'Other' in context
+        assert '4 running quests' in context
+        # No stage numbers in quest list
+        quest_list_section = context.split("Quest list by category:")[1].split("INSTRUCTIONS:")[0]
+        assert '50' not in quest_list_section
+        assert '10' not in quest_list_section
+        assert '105' not in quest_list_section
+
+    def test_context_includes_location(self):
+        from src.quest_trigger import build_quest_context_for_llm
+        quests = [
+            {'name': 'Taking Independence', 'faction': 'Minutemen', 'location': 'The Castle', 'stage': '30'},
+        ]
+        context = build_quest_context_for_llm(quests)
+        assert 'The Castle' in context
