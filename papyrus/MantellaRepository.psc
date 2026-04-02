@@ -109,7 +109,9 @@ bool property targetTrackingGiveCommands auto
 ;variables below are to prevent game listener events from firing too often
 bool property EventFireWeaponSpamBlocker auto
 bool property EventRadiationDamageSpamBlocker auto
+bool property EventOnHitSpamBlocker auto
 int property WeaponFiredCount auto
+int property HitCount auto
 
 
 ;player Variables
@@ -156,6 +158,8 @@ Function ResetEventSpamBlockers()
     EventFireWeaponSpamBlocker=false
     WeaponFiredCount=0
     EventRadiationDamageSpamBlocker=false
+    EventOnHitSpamBlocker=false
+    HitCount=0
 Endfunction
 
 Function reloadKeys()

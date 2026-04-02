@@ -188,7 +188,11 @@ Event Ontimer( int TimerID)
                 Actor Actor2 = PotentialActor2.GetReference() as Actor
 
                 if (Actor1 && Actor2)
-                    float distanceToClosestActor = game.getplayer().GetDistance(Actor1)
+                    ; Filter out non-humanoid actors (cats, dogs, brahmin, etc.)
+                    ; ActorTypeNPC keyword = 0x13794 in Fallout4.esm
+                    Keyword kActorTypeNPC = Game.GetFormFromFile(0x00013794, "Fallout4.esm") as Keyword
+                    if kActorTypeNPC && Actor1.HasKeyword(kActorTypeNPC) && Actor2.HasKeyword(kActorTypeNPC)
+                        float distanceToClosestActor = game.getplayer().GetDistance(Actor1)
                     float maxDistance = ConvertMeterToGameUnits(repository.radiantDistance)
                     if distanceToClosestActor <= maxDistance
                         float distanceBetweenActors = Actor1.GetDistance(Actor2)
@@ -218,6 +222,7 @@ Event Ontimer( int TimerID)
                                 endwhile
                             endif
                         endIf
+                    endIf
                     endIf
                 endIf
 
@@ -261,7 +266,7 @@ String lastHitSource = ""
 String lastAggressor = ""
 Int timesHitSameAggressorSource = 0
 Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource, Projectile akProjectile, bool abPowerAttack, bool abSneakAttack, bool abBashAttack, bool abHitBlocked, string apMaterial)
-    if repository.playerTrackingOnHit
+    if repository.playerTrackingOnHit && !repository.EventOnHitSpamBlocker && !PlayerRef.IsFlying()
         string aggressor = akAggressor.getdisplayname()
         string hitSource = akSource.getname()
 
@@ -271,12 +276,10 @@ Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource
             return
         endif
 
-        ; avoid writing events too often (continuous spells record very frequently)
-        ; if the actor and weapon hasn't changed, only record the event every 5 hits
-        if ((hitSource != lastHitSource) && (aggressor != lastAggressor)) || (timesHitSameAggressorSource > 5)
-            lastHitSource = hitSource
+        ; Only report first hit from each aggressor, ignore repeated hits
+        if (aggressor != lastAggressor)
             lastAggressor = aggressor
-            timesHitSameAggressorSource = 0
+            lastHitSource = hitSource
 
             if (hitSource == "None") || (hitSource == "")
                 conversation.AddIngameEvent(aggressor + " punched the player.")
@@ -291,8 +294,12 @@ Event OnHit(ObjectReference akTarget, ObjectReference akAggressor, Form akSource
                     conversation.AddIngameEvent(aggressor + " hit the player with " + hitSource+".")
                 endif
             endIf
-        else
-            timesHitSameAggressorSource += 1
+
+            repository.HitCount += 1
+            if repository.HitCount >= 2
+                repository.EventOnHitSpamBlocker = true
+                repository.HitCount = 0
+            endif
         endIf
     endif
     RegisterForHitEvent(PlayerRef)
@@ -323,8 +330,8 @@ Event OnItemEquipped(Form akBaseObject, ObjectReference akReference)
         if itemEquipped == "Mantella" || itemEquipped == "Pip-Boy" || itemEquipped == "Wedding Ring"
             return
         endif
-        string itemenchant = akBaseObject.GetEnchantment().getname()
-        if itemenchant != ""
+        Enchantment ench = akBaseObject.GetEnchantment()
+        if ench != None
             string msg = "The player equipped " + itemEquipped + "."
             ; Deduplicate rapid-fire equip events (mod automation)
             if msg != _lastPlayerEquipEvent
