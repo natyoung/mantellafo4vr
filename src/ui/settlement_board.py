@@ -44,7 +44,7 @@ def _read_diary_entries(db_path: Path) -> list[dict]:
     conn.row_factory = sqlite3.Row
     try:
         cur = conn.execute("""
-            SELECT npc_name, npc_ref_id, content, game_days_from, game_days_to, created_at
+            SELECT npc_name, npc_ref_id, content, game_days_from, game_days_to, created_at, location
             FROM diary_entries
             ORDER BY game_days_to DESC
         """)
