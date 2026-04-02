@@ -266,16 +266,20 @@ class ClientBase(AIClient):
         chat_completion: ChatCompletion = self._request_call_full(messages)
         if saved_model:
             self._model_name = saved_model
-        
+
         if (
-            not chat_completion or 
-            not chat_completion.choices or 
-            chat_completion.choices.__len__() < 1 or 
+            not chat_completion or
+            not chat_completion.choices or
+            chat_completion.choices.__len__() < 1 or
             not chat_completion.choices[0].message.content
         ):
             logger.info(f"LLM Response failed")
             return None
-        
+
+        finish_reason = getattr(chat_completion.choices[0], 'finish_reason', None)
+        if finish_reason == "length":
+            logger.warning(f"request_call response truncated (finish_reason=length, max_tokens may be too low)")
+
         reply = chat_completion.choices[0].message.content
         return reply
         
