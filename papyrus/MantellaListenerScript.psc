@@ -209,7 +209,7 @@ Event Ontimer( int TimerID)
                                 while added < extras && attempts < nearby.Length
                                     int pick = Utility.RandomInt(0, nearby.Length - 1)
                                     Actor candidate = nearby[pick]
-                                    if candidate && candidate != Actor1 && candidate != Actor2 && candidate != game.getplayer()
+                                    if candidate && candidate != Actor1 && candidate != Actor2 && candidate != game.getplayer() && candidate.HasKeyword(kActorTypeNPC)
                                         float dist = Actor1.GetDistance(candidate)
                                         if dist <= 1000
                                             Actor[] toAdd = new Actor[1]
