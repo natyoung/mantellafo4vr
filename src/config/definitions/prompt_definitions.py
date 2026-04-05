@@ -34,7 +34,7 @@ class PromptDefinitions:
     ALLOWED_PROMPT_VARIABLES_RADIANT = [
                                 "game",
                                 "name",
-                                "names",                                
+                                "names",
                                 "bio",
                                 "bios",
                                 "equipment",
@@ -42,11 +42,12 @@ class PromptDefinitions:
                                 "weather",
                                 "time",
                                 "current_day",
-                                "time_group", 
-                                "language", 
+                                "time_group",
+                                "language",
                                 "conversation_summary",
                                 "conversation_summaries",
-                                "actions"]
+                                "actions",
+                                "player_name"]
     
     ALLOWED_PROMPT_VARIABLES_FUNCTION_LLM = [
                                 "game"]
@@ -207,14 +208,15 @@ Speak authentically as a wasteland survivor. Use profanity naturally when it fit
 
     @staticmethod
     def get_fallout4_radiant_prompt_config_value() -> ConfigValue:
-        fallout4_radiant_prompt = """The following is a conversation in {location} in the post-apocalyptic Commonwealth of Fallout between {names}. Here are their backgrounds: {bios} 
-                            And here are their conversation histories: {conversation_summaries} 
+        fallout4_radiant_prompt = """The following is a conversation in {location} in the post-apocalyptic Commonwealth of Fallout between {names}. Here are their backgrounds: {bios}
+                            And here are their conversation histories: {conversation_summaries}
                             The time is {time} {time_group}.
-                            You are tasked with providing the responses for the NPCs. Please begin your response with an indication of who you are speaking as, for example: '{name}: Good evening.'. 
-                            Please use your own discretion to decide who should speak in a given situation (sometimes responding with all NPCs is suitable). 
+                            You are tasked with providing the responses for the NPCs. Please begin your response with an indication of who you are speaking as, for example: '{name}: Good evening.'.
+                            Please use your own discretion to decide who should speak in a given situation (sometimes responding with all NPCs is suitable).
                             {actions}
                             Remember, you can only respond as {names}. Ensure to use their full name when responding.
-                            The conversation takes place in {language}."""
+                            The conversation takes place in {language}.
+                            IMPORTANT: {player_name} (the player) is NOT part of this conversation and cannot hear you. Do not address {player_name} directly. You may refer to {player_name} in the third person when relevant."""
         return ConfigValueString("fallout4_radiant_prompt","Fallout 4 Radiant Conversation Prompt",PromptDefinitions.BASE_RADIANT_DESCRIPTION,fallout4_radiant_prompt,[PromptDefinitions.PromptChecker(PromptDefinitions.ALLOWED_PROMPT_VARIABLES_RADIANT)])
     
     @staticmethod
