@@ -221,6 +221,29 @@ class Conversation:
         # Set LLM debug log path to the character's conversation folder
         self.__update_llm_debug_path()
     
+    def handle_radiant_player_speech(self, transcription: str):
+        """Called when the player speaks during a radiant conversation.
+
+        Adds the cached player Character to the conversation, regenerates the
+        system prompt with full player context (trust, equipment, description),
+        injects the player's text into the message thread, and restarts NPC
+        generation so the NPCs can respond properly.
+
+        No-op if there is no cached player character.
+        """
+        player = self.__context.cached_player_character
+        if not player:
+            return
+
+        self.add_or_update_character([player])
+        self.__update_conversation_type()
+
+        player_msg = UserMessage(self.__context.config, transcription.strip(), player.name, False)
+        player_msg.is_multi_npc_message = True
+        self.__messages.add_message(player_msg)
+        self.__persist_new_messages()
+        self.__start_generating_npc_sentences()
+
     def __update_llm_debug_path(self):
         """Update LLM debug log path to current character's conversation folder."""
         npc = self.__context.npcs_in_conversation.last_added_character
@@ -286,7 +309,7 @@ class Conversation:
             return comm_consts.KEY_REQUESTTYPE_TTS, None
         
         # restart mic listening as soon as NPC's first sentence is processed
-        if self.__mic_input and self.__allow_interruption and not self.__mic_ptt and not self.__stt.is_listening and self.__allow_mic_input and not isinstance(self.__conversation_type, radiant):
+        if self.__mic_input and self.__allow_interruption and not self.__mic_ptt and not self.__stt.is_listening and self.__allow_mic_input:
             # Wait for current NPC audio to finish playing to avoid mic picking up speaker audio
             time_elapsed = time.time() - self.last_sentence_start_time
             remaining_audio_time = self.last_sentence_audio_length - time_elapsed
@@ -319,10 +342,17 @@ class Conversation:
             # Before sending next voiceline, give the player the chance to interrupt
             while time.time() - self.last_sentence_start_time < self.last_sentence_audio_length:
                 if self.__stt and self.__stt.has_player_spoken:
-                    self.__stop_generation()
-                    self.__sentences.clear()
-                    self.__is_player_interrupting = True
-                    return comm_consts.KEY_REQUESTTYPE_TTS, None
+                    if isinstance(self.__conversation_type, radiant):
+                        transcription = self.__stt.get_latest_transcription(silence_timeout=3)
+                        self.__stt.stop_listening()
+                        if transcription and transcription.strip():
+                            self.handle_radiant_player_speech(transcription)
+                        break
+                    else:
+                        self.__stop_generation()
+                        self.__sentences.clear()
+                        self.__is_player_interrupting = True
+                        return comm_consts.KEY_REQUESTTYPE_TTS, None
                 time.sleep(0.01)
             self.last_sentence_audio_length = next_sentence.voice_line_duration + self.__context.config.wait_time_buffer
             self.last_sentence_start_time = time.time()

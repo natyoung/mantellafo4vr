@@ -51,6 +51,7 @@ class Context:
         self.__game_context_changed: bool = False
         self.__game: GameEnum = config.game
         self.__prev_nearby_npc_names: list[str] = []  # Cache for nearby NPC names
+        self.__cached_player_character: Character | None = None
 
         self.__prev_location: str | None = None
         if self.__game.base_game == GameEnum.FALLOUT4:
@@ -61,6 +62,10 @@ class Context:
     @property
     def world_id(self) -> str:
         return self.__world_id
+
+    @property
+    def cached_player_character(self) -> 'Character | None':
+        return self.__cached_player_character
 
     @property
     def npcs_in_conversation(self) -> Characters:
@@ -688,6 +693,8 @@ class Context:
     def add_or_update_characters(self, new_list_of_npcs: list[Character]) -> list[Character]:
         removed_npcs = []
         for npc in new_list_of_npcs:
+            if npc.is_player_character:
+                self.__cached_player_character = npc
             if not self.__npcs_in_conversation.contains_character(npc):
                 self.__npcs_in_conversation.add_or_update_character(npc)
                 if not npc.is_player_character:
