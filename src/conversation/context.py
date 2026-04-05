@@ -51,7 +51,6 @@ class Context:
         self.__game_context_changed: bool = False
         self.__game: GameEnum = config.game
         self.__prev_nearby_npc_names: list[str] = []  # Cache for nearby NPC names
-        self.__last_known_player_name: str = ""  # Persists across radiant conversations
 
         self.__prev_location: str | None = None
         if self.__game.base_game == GameEnum.FALLOUT4:
@@ -62,10 +61,6 @@ class Context:
     @property
     def world_id(self) -> str:
         return self.__world_id
-
-    @property
-    def last_known_player_name(self) -> str:
-        return self.__last_known_player_name
 
     @property
     def npcs_in_conversation(self) -> Characters:
@@ -1043,9 +1038,6 @@ class Context:
         player_equipment = ""
         if player:
             player_name = player.name
-            self.__last_known_player_name = player_name
-        elif self.__last_known_player_name:
-            player_name = self.__last_known_player_name
             player_equipment = player.equipment.get_equipment_description('')
             game_sent_description = player.get_custom_character_value(communication_constants.KEY_ACTOR_PC_DESCRIPTION)
             if game_sent_description and game_sent_description != "":
