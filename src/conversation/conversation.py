@@ -286,7 +286,7 @@ class Conversation:
             return comm_consts.KEY_REQUESTTYPE_TTS, None
         
         # restart mic listening as soon as NPC's first sentence is processed
-        if self.__mic_input and self.__allow_interruption and not self.__mic_ptt and not self.__stt.is_listening and self.__allow_mic_input and not isinstance(self.__conversation_type, radiant):
+        if self.__mic_input and self.__allow_interruption and not self.__mic_ptt and not self.__stt.is_listening and self.__allow_mic_input:
             # Wait for current NPC audio to finish playing to avoid mic picking up speaker audio
             time_elapsed = time.time() - self.last_sentence_start_time
             remaining_audio_time = self.last_sentence_audio_length - time_elapsed
@@ -319,10 +319,25 @@ class Conversation:
             # Before sending next voiceline, give the player the chance to interrupt
             while time.time() - self.last_sentence_start_time < self.last_sentence_audio_length:
                 if self.__stt and self.__stt.has_player_spoken:
-                    self.__stop_generation()
-                    self.__sentences.clear()
-                    self.__is_player_interrupting = True
-                    return comm_consts.KEY_REQUESTTYPE_TTS, None
+                    if isinstance(self.__conversation_type, radiant):
+                        # Player spoke during radiant — inject their reply inline
+                        transcription = self.__stt.get_latest_transcription(silence_timeout=3)
+                        self.__stt.stop_listening()
+                        if transcription and transcription.strip():
+                            self.__stop_generation()
+                            self.__sentences.clear()
+                            player_name = self.__context.last_known_player_name
+                            player_msg = UserMessage(self.__context.config, transcription.strip(), player_name, False)
+                            player_msg.is_multi_npc_message = True
+                            self.__messages.add_message(player_msg)
+                            self.__persist_new_messages()
+                            self.__start_generating_npc_sentences()
+                        break
+                    else:
+                        self.__stop_generation()
+                        self.__sentences.clear()
+                        self.__is_player_interrupting = True
+                        return comm_consts.KEY_REQUESTTYPE_TTS, None
                 time.sleep(0.01)
             self.last_sentence_audio_length = next_sentence.voice_line_duration + self.__context.config.wait_time_buffer
             self.last_sentence_start_time = time.time()

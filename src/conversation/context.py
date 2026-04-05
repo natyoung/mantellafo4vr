@@ -64,6 +64,10 @@ class Context:
         return self.__world_id
 
     @property
+    def last_known_player_name(self) -> str:
+        return self.__last_known_player_name
+
+    @property
     def npcs_in_conversation(self) -> Characters:
         return self.__npcs_in_conversation
     
