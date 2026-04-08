@@ -21,6 +21,7 @@ class GenericNPCIdentity:
     race: str
     original_game_name: str
     created_at: str
+    voice_accent: str = ""
 
 
 # Names the game gives to generic NPCs — if an NPC's name matches one of these,
@@ -160,6 +161,29 @@ BACKSTORY_FRAGMENTS: list[str] = [
 ]
 
 
+# ~20% of generic NPCs get a foreign accent; the rest speak with a default English accent.
+# 80 empty slots + 20 accent slots = 100 total → each accent is ~2%, total accented ~20%.
+ACCENT_POOL: list[str] = (
+    [""] * 80 +  # 80% — no accent (default English)
+    ["it", "zh", "en-au", "fr", "de", "es", "ja", "pt", "ko", "pl"] * 2  # 20% — two slots each
+)
+
+
+# Bio hints so the LLM reflects the character's foreign origin in dialogue.
+_ACCENT_BIO_NOTES: dict[str, str] = {
+    "it": "They originally came from an Italian pre-war community and still carry the accent.",
+    "zh": "They descended from a Chinese pre-war family and occasionally slip into Mandarin phrases.",
+    "en-au": "They hail from a pre-war Australian enclave and their accent makes them stand out.",
+    "fr": "They have French roots and their accent is noticeable.",
+    "de": "They come from a German pre-war family and still speak with the accent.",
+    "es": "They grew up in a Spanish-speaking community and the accent never left them.",
+    "ja": "They descended from a Japanese pre-war family and sometimes use Japanese words.",
+    "pt": "They come from a Portuguese-speaking settlement further south.",
+    "ko": "They have Korean heritage from a pre-war family enclave.",
+    "pl": "They come from a Polish pre-war community and carry the accent.",
+}
+
+
 def _hash_pick(ref_id: str, salt: str, pool: list) -> int:
     """Deterministic index selection via SHA-256."""
     digest = hashlib.sha256((ref_id + salt).encode()).hexdigest()
@@ -193,7 +217,8 @@ class GenericNPCRegistry:
                  voice_pool: dict[str, list[str]]) -> GenericNPCIdentity:
         name = self._assign_name(ref_id, gender)
         voice = self._assign_voice(ref_id, gender, voice_pool)
-        bio = self._generate_bio(ref_id, name, gender, race)
+        accent = ACCENT_POOL[_hash_pick(ref_id, "accent", ACCENT_POOL)]
+        bio = self._generate_bio(ref_id, name, gender, race, accent)
 
         identity = GenericNPCIdentity(
             ref_id=ref_id,
@@ -204,6 +229,7 @@ class GenericNPCRegistry:
             race=race,
             original_game_name=original_name,
             created_at=datetime.now().isoformat(timespec="seconds"),
+            voice_accent=accent,
         )
         with self._lock:
             self._entries[ref_id] = identity
@@ -235,13 +261,15 @@ class GenericNPCRegistry:
         idx = _hash_pick(ref_id, "voice", pool)
         return pool[idx]
 
-    def _generate_bio(self, ref_id: str, name: str, gender: int, race: str) -> str:
+    def _generate_bio(self, ref_id: str, name: str, gender: int, race: str, accent: str = "") -> str:
         trait = PERSONALITY_TRAITS[_hash_pick(ref_id, "trait", PERSONALITY_TRAITS)]
         occupation = OCCUPATIONS[_hash_pick(ref_id, "occupation", OCCUPATIONS)]
         backstory = BACKSTORY_FRAGMENTS[_hash_pick(ref_id, "backstory", BACKSTORY_FRAGMENTS)]
         pronoun = "She" if gender == 1 else "He"
+        accent_note = _ACCENT_BIO_NOTES.get(accent, "")
         return (
             f"{name} is a {trait} {race.lower()} wastelander. "
             f"{pronoun} spends most days {occupation}. "
             f"{name} {backstory}."
+            + (f" {accent_note}" if accent_note else "")
         )

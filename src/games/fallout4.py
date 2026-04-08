@@ -129,8 +129,10 @@ class Fallout4(Gameable):
             character_info["bio"] = identity.bio
             if identity.voice_model:
                 character_info["voice_model"] = identity.voice_model
+            if identity.voice_accent:
+                character_info["voice_accent"] = identity.voice_accent
             is_generic_npc = False
-            logger.info(f"[GENERIC NPC] ref_id={ref_id} → {identity.assigned_name} (voice={identity.voice_model})")
+            logger.info(f"[GENERIC NPC] ref_id={ref_id} → {identity.assigned_name} (voice={identity.voice_model}, accent={identity.voice_accent or 'none'})")
 
         bio = character_info.get("bio", "")
         wiki = character_info.get("wiki", "")

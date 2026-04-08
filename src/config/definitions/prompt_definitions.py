@@ -295,11 +295,9 @@ Keep it concise — one or two paragraphs. Write in {language}."""
                                        name = the NPC's name
                                        language = the selected language
                                        game = the game selected"""
-        arc_prompt = """You are {name} in {game}, reflecting on a significant chapter of your life. Below are your diary entries spanning this period.
-Write a character arc summary: How have you developed as a person? What major events shaped you?
-What relationships and conflicts define who you are now? Write as {name} looking back on this chapter.
-Keep it 3-5 paragraphs, narrative form. Refer to the player by name as {player_name}.
-Write in {language}."""
+        arc_prompt = """You are {name} in {game}. Below are your diary entries.
+Write a single short paragraph (3-5 sentences) summarizing this chapter of your life: who you were, how you changed, where you stand now with {player_name}. Be direct and concrete. No poetry, no event recap, no inner monologue. Just the arc.
+Write as {name} in {language}."""
         return ConfigValueString("arc_prompt", "Character Arc Prompt", arc_prompt_description, arc_prompt,
                                  [PromptDefinitions.PromptChecker(["name", "language", "game", "player_name"])])
 
@@ -309,7 +307,7 @@ Write in {language}."""
                         The NPC must also have at least 3 unconsolidated diary entries. This is the highest tier
                         of the hierarchical memory system: recent memories stay as diary entries, older ones
                         get compressed into character arc summaries."""
-        return ConfigValueInt("arc_interval_days", "Arc Interval (Game Days)", description, 14, 7, 365)
+        return ConfigValueInt("arc_interval_days", "Arc Interval (Game Days)", description, 30, 7, 365)
 
     @staticmethod
     def get_arc_min_diaries_config_value() -> ConfigValue:
